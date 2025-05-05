@@ -89,15 +89,15 @@ python3 run_mesa.py
 
 Edite os arquivos em configs/sample_config.yaml ou sample_config.py para mudar o grid, agentes ou recursos:
 
-terrain.width / height
+- terrain.width / height
 
-resources: tipo e posição
+- resources: tipo e posição
 
-agents: tipo e posição
+- agents: tipo e posição
 
-obstacles: lista de tuplas (x, y)
+- obstacles: lista de tuplas (x, y)
 
-simulation.storm_turn: passo em que a tempestade encerra a coleta
+- simulation.storm_turn: passo em que a tempestade encerra a coleta
 
 ### 📊 Métricas de Avaliação
 
