@@ -1,9 +1,16 @@
 terrain:
   width: 10
   height: 10
+  obstacles:
+    - type: MOUNTAIN
+      cells: [[4,4], [4,5], [5,4]]
+    - type: RIVER
+      cells: [[1,6], [2,6], [3,6], [4,6]]
+
 
 simulation:
   steps: 50
+  storm_turn: 40
 
 resources:
   - type: CRYSTAL

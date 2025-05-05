@@ -13,7 +13,7 @@ class ResourceType(Enum):
 @dataclass
 class Resource:
     resource_type: ResourceType
-    position: Position
+    position: tuple[int, int]
     collected: bool = False
 
 

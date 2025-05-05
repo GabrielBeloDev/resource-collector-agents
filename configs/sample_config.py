@@ -1,6 +1,9 @@
 config = {
     "terrain": {"width": 10, "height": 10},
-    "simulation": {"steps": 50},
+    "simulation": {
+        "steps": 50,
+        "storm_turn": 60,
+    },
     "resources": [
         {"type": "CRYSTAL", "position": [2, 3]},
         {"type": "METAL", "position": [4, 5]},
@@ -12,4 +15,5 @@ config = {
         {"type": "GOAL_BASED", "position": [2, 2]},
         {"type": "COOPERATIVE", "position": [3, 3]},
     ],
+    "obstacles": [(4, 4), (4, 5), (5, 4), (1, 6), (2, 6), (3, 6), (4, 6)],
 }

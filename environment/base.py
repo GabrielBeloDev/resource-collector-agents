@@ -9,6 +9,10 @@ class Base:
     def deposit(self, resource_type):
         if resource_type.name in self.storage:
             self.storage[resource_type.name] += 1
+            total = self.get_total_utility()
+            print(
+                f"[BASE] Recebeu {resource_type.name}  (+{resource_type.value})  → Total={total}"
+            )
 
     def get_total_utility(self):
         return (

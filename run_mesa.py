@@ -4,11 +4,15 @@ from configs.sample_config import config
 model = ResourceModel(
     width=config["terrain"]["width"],
     height=config["terrain"]["height"],
-    num_agents=len(config["agents"]),
+    agent_configs=config["agents"],
     resources=config["resources"],
+    obstacles=config["obstacles"],
+    storm_turn=config["simulation"]["storm_turn"],
 )
 
 for i in range(config["simulation"]["steps"]):
     model.step()
 
-print("Total utility:", model.base.get_total_utility())
+print("\n=== RESUMO ===")
+print(f"Utilidade total: {model.base.get_total_utility()}")
+print(f"Passos executados: {model.schedule.time}")

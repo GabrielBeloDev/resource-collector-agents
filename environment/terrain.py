@@ -1,6 +1,6 @@
 import random
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, Set
 
 
 @dataclass(frozen=True)
@@ -14,24 +14,32 @@ class Terrain:
         self.width = width
         self.height = height
         self.grid = [[None for _ in range(width)] for _ in range(height)]
-        self.obstacles = set()
+        self.obstacles: Set[Tuple[int, int]] = set()
 
-    def is_valid(self, position: Position) -> bool:
+    def add_obstacle(self, x: int, y: int):
+        if 0 <= x < self.width and 0 <= y < self.height:
+            self.obstacles.add((x, y))
+
+    def is_free(self, x: int, y: int) -> bool:
         return (
-            0 <= position.x < self.width
-            and 0 <= position.y < self.height
-            and position not in self.obstacles
+            0 <= x < self.width
+            and 0 <= y < self.height
+            and (x, y) not in self.obstacles
         )
 
-    def add_obstacle(self, position: Position):
-        if self.is_valid(position):
-            self.obstacles.add(position)
-
-    def get_random_adjacent_position(self, position: Position) -> Position:
+    def get_random_adjacent_position(self, pos: Position) -> Position:
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-        valid_positions = [
-            Position(position.x + dx, position.y + dy)
+        valid = [
+            Position(pos.x + dx, pos.y + dy)
             for dx, dy in directions
-            if self.is_valid(Position(position.x + dx, position.y + dy))
+            if self.is_free(pos.x + dx, pos.y + dy)
         ]
-        return random.choice(valid_positions) if valid_positions else position
+        return random.choice(valid) if valid else pos
+
+
+def safe_move(grid, agent, new_pos, obstacles):
+    x, y = new_pos
+    if (x, y) in obstacles:
+        return
+    if 0 <= x < grid.width and 0 <= y < grid.height:
+        grid.move_agent(agent, new_pos)

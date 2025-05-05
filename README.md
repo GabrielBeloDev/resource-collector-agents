@@ -16,6 +16,23 @@ Uma equipe de agentes autônomos pousou em um planeta desconhecido. Eles precisa
 | Cooperativo          | Troca mensagens com outros agentes e divide tarefas para ganhar eficiência. |
 | BDI                  | Age segundo o modelo Crenças-Desejos-Intenções, equilibrando metas e percepções.
 
+## 🎮 Como funciona
+
+| Ícone | Objeto | Cor no canvas |
+|-------|--------|---------------|
+| ⬜ | **Base** | branco, contorno preto |
+| ◼ | **Montanha / Rio** | cinza (#555) |
+| 🔵 | Cristal (10 pts) | blue |
+| ⚪ | Metal (20 pts) | silver |
+| ⚫ | Estrutura (50 pts) | black |
+| 🟠 | Agente Reativo | orange |
+| 🟣 | Agente Estado | mediumpurple |
+| 🟢 | Agente Objetivo | limegreen |
+| 🔴 | Agente Cooperativo | red |
+| 🟡 | Agente BDI | gold |
+
+Clique **Reset** e depois **Start** no navegador para ver os agentes contornando obstáculos, coletando recursos e depositando na base.
+
 ## ⚙️ Tecnologias
 
 - Python 3.10+
@@ -26,23 +43,21 @@ Uma equipe de agentes autônomos pousou em um planeta desconhecido. Eles precisa
 
 ```text
 resource-collector-agents/
-├── agents/                # Implementação dos diferentes tipos de agentes
-├── communication/         # Sistema de mensagens entre agentes
-├── configs/               # Arquivos de configuração (YAML e .py)
-├── environment/           # Modelagem do terreno, base e recursos
-├── evaluation/            # Métricas e avaliação de desempenho
-├── mesa_simulation/       # Integração com o framework Mesa
-├── simulation/            # Simulação base sem Mesa
-├── main.py                # Execução tradicional (sem Mesa)
-├── run_mesa.py            # Execução com Mesa
-└── README.md              # Este arquivo
+├── agents/             # Cinco agentes (Reactive, State, Goal, Coop, BDI)
+├── communication/      # MessageBus
+├── configs/            # sample_config.yaml / .py
+├── environment/        # Terrain, ResourceType, Base
+├── mesa_simulation/    # ResourceModel + BaseAgent/ObstacleAgent
+├── run_mesa.py         # Execução headless (terminal)
+├── server.py           # Visualização web (http://localhost:8521)
+└── README.md
 ```
 
 ## 📦 Instalação
 
 #### 1. Clone o repositório:
 ```bash
-git clone https://github.com/seu-usuario/resource-collector-agents.git
+git clone https://github.com/GabrielBeloDev/resource-collector-agents.git
 ```
 ```bash
 cd resource-collector-agents
@@ -56,23 +71,33 @@ source venv/bin/activate  # Linux/macOS
 
 #### 3. Instale as dependências:
 ```bash
-pip install -U "mesa[rec]"
+pip install mesa==2.1.1"
 ```
 
 #### 4. Execução da Simulação
 ```bash
-🔹 Modo tradicional (sem Mesa):
-python3 main.py
+🔹 Modo Web (com Mesa):
+python3 python3 server.py 
 ```
 ```bash
-🔸 Modo com Mesa:
+🔸 Modo terminal:
 python3 run_mesa.py
 ```
 
 
 ## 🔸 Configuração:
 
-Edite os arquivos em configs/sample_config.yaml ou sample_config.py para mudar o grid, agentes ou recursos.
+Edite os arquivos em configs/sample_config.yaml ou sample_config.py para mudar o grid, agentes ou recursos:
+
+terrain.width / height
+
+resources: tipo e posição
+
+agents: tipo e posição
+
+obstacles: lista de tuplas (x, y)
+
+simulation.storm_turn: passo em que a tempestade encerra a coleta
 
 ### 📊 Métricas de Avaliação
 
