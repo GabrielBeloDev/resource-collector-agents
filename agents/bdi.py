@@ -2,60 +2,56 @@ from mesa import Agent
 from environment.resource import ResourceType
 
 
+def log(agent, msg):
+    print(f"[BDI {agent.unique_id}] {msg}")
+
+
 class BDIAgent(Agent):
-    def __init__(self, uid, model, message_bus):
-        super().__init__(uid, model)
+    def __init__(self, unique_id, model, message_bus):
+        super().__init__(unique_id, model)
         self.message_bus = message_bus
-        self.beliefs = {}
-        self.intentions = []
-        self.desires = [
-            ResourceType.STRUCTURE,
-            ResourceType.METAL,
-            ResourceType.CRYSTAL,
-        ]
+        self.beliefs: dict[tuple[int, int], ResourceType] = {}
 
-    def perceive(self):
-        for obj in self.model.grid.get_cell_list_contents([self.pos]):
-            if hasattr(obj, "resource_type"):
-                self.beliefs[self.pos] = obj.resource_type
-                self.broadcast_belief(self.pos, obj.resource_type)
-
+    def step(self):
         for msg in self.message_bus.receive(str(self.unique_id)):
             if msg["type"] == "belief":
                 pos = tuple(msg["data"]["position"])
                 r_type = ResourceType[msg["data"]["resource_type"]]
                 self.beliefs[pos] = r_type
+                log(self, f"🧠 crença atualizada: {r_type.name} em {pos}")
 
-    def broadcast_belief(self, pos, r_type):
-        for i in range(10):
-            if i != self.unique_id:
-                self.message_bus.send(
-                    str(i),
-                    {
-                        "type": "belief",
-                        "data": {"position": pos, "resource_type": r_type.name},
-                    },
+        panel = ", ".join(f"{rtype.name}@{pos}" for pos, rtype in self.beliefs.items())
+        log(self, f"📊 painel de recursos: {panel or 'vazio'}")
+
+        if self.beliefs:
+            best_pos, best_type = max(
+                self.beliefs.items(),
+                key=lambda item: item[1].value / self.manhattan_distance(item[0]),
+            )
+            free_agents = [
+                a
+                for a in self.model.schedule.agents
+                if getattr(a, "carrying", None) is None
+                and a.unique_id != self.unique_id
+            ]
+            if free_agents:
+                nearest = min(
+                    free_agents,
+                    key=lambda a: abs(a.pos[0] - best_pos[0])
+                    + abs(a.pos[1] - best_pos[1]),
+                )
+                instr = {
+                    "type": "task",
+                    "action": "collect",
+                    "position": best_pos,
+                    "resource_type": best_type.name,
+                }
+                self.message_bus.send(str(nearest.unique_id), instr)
+                log(
+                    self,
+                    f"📩 instruiu {nearest.__class__.__name__} {nearest.unique_id} a coletar {best_type.name} em {best_pos}",
                 )
 
-    def deliberate(self):
-        resources = [(p, t) for p, t in self.beliefs.items() if t in self.desires]
-        if resources:
-            resources.sort(key=lambda r: (-r[1].value, self.distance_to(r[0])))
-            self.intentions = [resources[0][0]]
-
-    def step(self):
-        self.perceive()
-        self.deliberate()
-
-        if self.intentions:
-            target = self.intentions[0]
-            self.model.safe_move(self, target)
-            for obj in self.model.grid.get_cell_list_contents([self.pos]):
-                if hasattr(obj, "resource_type"):
-                    self.model.grid.remove_agent(obj)
-                    self.model.base.deposit(obj.resource_type)
-                    self.intentions.pop(0)
-                    break
-
-    def distance_to(self, pos):
-        return abs(self.pos[0] - pos[0]) + abs(self.pos[1] - pos[1])
+    def manhattan_distance(self, pos: tuple[int, int]) -> int:
+        bx, by = self.model.base_position
+        return abs(bx - pos[0]) + abs(by - pos[1])

@@ -62,7 +62,8 @@ params = {
     "width": 20,
     "height": 15,
     "agent_configs": [
-        {"type": "GOAL_BASED", "position": [0, 0]},
+        {"type": "BDI", "position": [0, 0]},
+        {"type": "STATE_BASED", "position": [0, 0]},
         {"type": "STATE_BASED", "position": [0, 0]},
     ],
     "resources": [
