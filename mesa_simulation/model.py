@@ -36,7 +36,6 @@ class ResourceModel(Model):
         self.message_bus = MessageBus()
         self.next_uid = 0
 
-
         self.grid.place_agent(BaseAgent(self.next_uid, self), self.base_position)
         self.next_uid += 1
 
@@ -49,11 +48,11 @@ class ResourceModel(Model):
         for r in resources:
             pos = tuple(r["position"])
             ra = ResourceAgent(self.next_uid, self, ResourceType[r["type"]])
-            self.grid.place_agent(ra, self.base_position)
+            self.grid.place_agent(ra, pos)
             self.next_uid += 1
 
     def safe_move(self, agent, pos):
-      _safe_move(self.grid, agent, pos, set())
+        _safe_move(self.grid, agent, pos, set())
 
     def create_agent(self, agent_type):
         uid = self.next_uid

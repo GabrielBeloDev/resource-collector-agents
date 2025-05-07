@@ -63,14 +63,14 @@ params = {
     "height": 15,
     "agent_configs": [
         {"type": "REACTIVE", "position": [0, 0]},
-        {"type": "STATE_BASED", "position": [0, 0]},
-        {"type": "GOAL_BASED", "position": [0, 0]},
-        {"type": "COOPERATIVE", "position": [0, 0]},
-        {"type": "BDI", "position": [0, 0]},
     ],
     "resources": [
         {"type": "CRYSTAL", "position": [2, 3]},
         {"type": "CRYSTAL", "position": [8, 10]},
+        {"type": "CRYSTAL", "position": [5, 5]},
+        {"type": "CRYSTAL", "position": [10, 6]},
+        {"type": "CRYSTAL", "position": [3, 12]},
+        {"type": "CRYSTAL", "position": [17, 4]},
         {"type": "METAL", "position": [4, 8]},
         {"type": "METAL", "position": [12, 2]},
         {"type": "STRUCTURE", "position": [15, 7]},
