@@ -23,12 +23,15 @@ class StateBasedAgent(Agent):
             self.move_towards_base()
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying)
-                log(self, f"entregou {self.carrying.name}")
+                log(self, f"🎯 entregou {self.carrying.name} na base")
                 self.carrying = None
-        elif self.waiting_for_help:
+            return
+
+        if self.waiting_for_help:
             self.check_for_partner()
-        else:
-            self.explore_and_collect()
+            return
+
+        self.explore_and_collect()
 
     def explore_and_collect(self):
         neighbors = self.model.grid.get_neighborhood(
@@ -64,7 +67,9 @@ class StateBasedAgent(Agent):
         partners = [
             a
             for a in cellmates
-            if isinstance(a, StateBasedAgent) and a.unique_id != self.unique_id
+            if isinstance(a, Agent)
+            and a.unique_id != self.unique_id
+            and getattr(a, "waiting_for_help", False)
         ]
 
         if partners:
@@ -77,9 +82,19 @@ class StateBasedAgent(Agent):
                     break
             self.carrying = ResourceType.STRUCTURE
             self.waiting_for_help = False
-            log(self, f"coletou STRUCTURE com ajuda de agente {partners[0].unique_id}")
+            for partner in partners:
+                partner.carrying = ResourceType.STRUCTURE
+                partner.waiting_for_help = False
+                log(
+                    partner,
+                    f"🤝 coletou STRUCTURE com ajuda de {self.__class__.__name__} {self.unique_id}",
+                )
+            log(
+                self,
+                f"🧱 coletou STRUCTURE com ajuda de {partners[0].__class__.__name__} {partners[0].unique_id}",
+            )
         else:
-            log(self, "aguardando parceiro para coletar STRUCTURE")
+            log(self, "⏳ aguardando parceiro para pegar STRUCTURE")
 
     def move_towards_base(self):
         x, y = self.pos

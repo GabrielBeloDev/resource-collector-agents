@@ -62,7 +62,7 @@ params = {
     "width": 20,
     "height": 15,
     "agent_configs": [
-        {"type": "STATE_BASED", "position": [0, 0]},
+        {"type": "GOAL_BASED", "position": [0, 0]},
         {"type": "STATE_BASED", "position": [0, 0]},
     ],
     "resources": [
