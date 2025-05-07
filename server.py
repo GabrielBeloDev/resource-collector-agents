@@ -62,11 +62,11 @@ params = {
     "width": 20,
     "height": 15,
     "agent_configs": [
-        {"type": "REACTIVE", "position": [0, 1]},
-        {"type": "STATE_BASED", "position": [1, 0]},
-        {"type": "GOAL_BASED", "position": [2, 2]},
-        {"type": "COOPERATIVE", "position": [3, 3]},
-        {"type": "BDI", "position": [5, 5]},
+        {"type": "REACTIVE", "position": [0, 0]},
+        {"type": "STATE_BASED", "position": [0, 0]},
+        {"type": "GOAL_BASED", "position": [0, 0]},
+        {"type": "COOPERATIVE", "position": [0, 0]},
+        {"type": "BDI", "position": [0, 0]},
     ],
     "resources": [
         {"type": "CRYSTAL", "position": [2, 3]},
@@ -75,7 +75,7 @@ params = {
         {"type": "METAL", "position": [12, 2]},
         {"type": "STRUCTURE", "position": [15, 7]},
     ],
-    "obstacles": [(4, 4), (4, 5), (5, 4), (1, 6), (2, 6), (3, 6), (4, 6)],
+    "obstacles": [],
 }
 
 cell_px = 40
