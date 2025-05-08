@@ -6,9 +6,9 @@ from mesa_simulation.model import ResourceModel
 from environment.resource import ResourceType
 
 VALUE_MAP = {
-    ResourceType.CRYSTAL: 1,
-    ResourceType.METAL: 3,
-    ResourceType.STRUCTURE: 10,
+    ResourceType.CRYSTAL: 10,
+    ResourceType.METAL: 20,
+    ResourceType.STRUCTURE: 50,
 }
 
 
@@ -26,7 +26,6 @@ class InstrumentedModel(ResourceModel):
         super().__init__(**kwargs)
         self.datacollector = DataCollector(
             model_reporters={
-                "Utility": _utility,
                 "Cristais": _count(ResourceType.CRYSTAL),
                 "Metais": _count(ResourceType.METAL),
                 "Estruturas": _count(ResourceType.STRUCTURE),
@@ -38,14 +37,55 @@ class InstrumentedModel(ResourceModel):
         super().step()
 
 
+class LegendPanel(TextElement):
+    def render(self, model):
+        return """
+        <div style="font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5;">
+            <b>📘 Legenda:</b><br><br>
+            <u>Recursos:</u><br>
+            <span style="color:dodgerblue;">●</span> CRYSTAL<br>
+            <span style="color:silver;">●</span> METAL<br>
+            <span style="color:black;">●</span> STRUCTURE<br><br>
+            <u>Agentes:</u><br>
+            <span style="color:orange;">■</span> Reactive<br>
+            <span style="color:mediumpurple;">■</span> State-Based<br>
+            <span style="color:limegreen;">■</span> Goal-Based<br>
+            <span style="color:red;">■</span> Cooperative<br>
+            <span style="color:gold;">■</span> BDI<br>
+        </div>
+        """
+
+
 class InfoPanel(TextElement):
     def render(self, model):
-        step = model.schedule.steps
-        util = _utility(model)
-        c = _count(ResourceType.CRYSTAL)(model)
-        m_ = _count(ResourceType.METAL)(model)
-        s = _count(ResourceType.STRUCTURE)(model)
-        return f"Passo: {step}"
+        return f"<b>Passo:</b> {model.schedule.time}"
+
+
+class AgentStatsPanel(TextElement):
+    def render(self, model):
+        output = "<b>Coletas por Agente:</b><br><pre>"
+
+        total = {rt: 0 for rt in ResourceType}
+        total_score = 0
+
+        for agent in model.schedule.agents:
+            if not hasattr(agent, "delivered"):
+                continue
+            name = getattr(agent, "name", f"Agente {agent.unique_id}")
+            delivered = agent.delivered
+            score = sum(delivered[r] * VALUE_MAP[r] for r in ResourceType)
+            output += f"{name}: "
+            output += " | ".join(f"{r.name[0]}: {delivered[r]}" for r in ResourceType)
+            output += f" | Pontuação: {score}\n"
+            for r in ResourceType:
+                total[r] += delivered[r]
+            total_score += score
+
+        output += "\nTOTAL: " + " | ".join(
+            f"{r.name[0]}: {total[r]}" for r in ResourceType
+        )
+        output += f" | Pontuação Total: {total_score}</pre>"
+        return output
 
 
 def agent_portrayal(agent):
@@ -112,31 +152,33 @@ def agent_portrayal(agent):
 
 params = {
     "width": 20,
-    "height": 15,
+    "height": 13,
     "agent_configs": [
-        {"type": "BDI", "position": [0, 0]},
-        # {"type": "STATE_BASED", "position": [0, 0]},
-        # {"type": "GOAL_BASED", "position": [0, 0]},
         {"type": "REACTIVE", "position": [0, 0]},
+        {"type": "STATE_BASED", "position": [0, 0]},
+        {"type": "GOAL_BASED", "position": [0, 0]},
+        {"type": "COOPERATIVE", "position": [0, 0]},
+        {"type": "BDI", "position": [0, 0]},
     ],
     "resources": [
+        {"type": "STRUCTURE", "position": [2, 2]},
+        {"type": "STRUCTURE", "position": [3, 2]},
+        {"type": "METAL", "position": [4, 2]},
+        {"type": "METAL", "position": [5, 2]},
         {"type": "CRYSTAL", "position": [2, 3]},
-        {"type": "CRYSTAL", "position": [8, 10]},
-        {"type": "CRYSTAL", "position": [5, 5]},
-        {"type": "CRYSTAL", "position": [10, 6]},
-        {"type": "CRYSTAL", "position": [3, 12]},
-        {"type": "CRYSTAL", "position": [17, 4]},
-        {"type": "METAL", "position": [4, 8]},
-        {"type": "METAL", "position": [12, 2]},
-        {"type": "STRUCTURE", "position": [1, 1]},
-        {"type": "CRYSTAL", "position": [2, 1]},
+        {"type": "CRYSTAL", "position": [3, 3]},
         {"type": "CRYSTAL", "position": [4, 3]},
-        {"type": "CRYSTAL", "position": [2, 2]},
+        {"type": "CRYSTAL", "position": [5, 3]},
+        {"type": "STRUCTURE", "position": [6, 3]},
+        {"type": "STRUCTURE", "position": [7, 3]},
+        {"type": "METAL", "position": [8, 3]},
+        {"type": "CRYSTAL", "position": [6, 4]},
     ],
     "obstacles": [],
 }
 
 cell_px = 40
+
 grid = CanvasGrid(
     agent_portrayal,
     params["width"],
@@ -145,16 +187,16 @@ grid = CanvasGrid(
     cell_px * params["height"],
 )
 
-
 info = InfoPanel()
+legend = LegendPanel()
+stats = AgentStatsPanel()
 
 server = ModularServer(
     InstrumentedModel,
-    [grid, info],
+    [grid, info, legend, stats],
     "Resource‑Collector Agents (v3)",
     params,
 )
-
 server.port = 8521
 
 if __name__ == "__main__":

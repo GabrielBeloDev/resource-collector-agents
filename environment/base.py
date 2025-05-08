@@ -7,7 +7,7 @@ class Base:
         self.position = position
         self.storage = {"CRYSTAL": 0, "METAL": 0, "STRUCTURE": 0}
 
-    def deposit(self, resource_type):
+    def deposit(self, resource_type, agent_id=None):
         if resource_type.name in self.storage:
             self.model.total_resources -= 1
             print(f"🔻 Recursos restantes: {self.model.total_resources}")
@@ -16,6 +16,11 @@ class Base:
             print(
                 f"[BASE] Recebeu {resource_type.name}  (+{resource_type.value})  → Total={total}"
             )
+
+            if agent_id is not None:
+                log = self.model.agents_log.get(agent_id)
+                if log is not None:
+                    log[resource_type] += 1
 
     def get_total_utility(self):
         return (

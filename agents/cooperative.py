@@ -10,17 +10,22 @@ def log(agent, msg):
 class CooperativeAgent(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
+        self.name = "Cooperative"
         self.carrying = None
         self.waiting_for_help = False
-        self.known_structures = set()
-        self.target = None
+        self.delivered = {
+            ResourceType.CRYSTAL: 0,
+            ResourceType.METAL: 0,
+            ResourceType.STRUCTURE: 0,
+        }
 
     def step(self):
         if self.carrying:
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
-                self.model.base.deposit(self.carrying)
-                log(self, f"entregou STRUCTURE na base")
+                self.model.base.deposit(self.carrying, self.unique_id)
+                self.delivered[self.carrying] += 1
+                log(self, f"entregou {self.carrying.name} na base")
                 self.carrying = None
             return
 
@@ -28,51 +33,38 @@ class CooperativeAgent(Agent):
             self.check_for_partner()
             return
 
-        self.scan_for_structures()
-
-        if self.known_structures:
-            best = self.choose_best_structure()
-            if best:
-                self.target = best
-                log(self, f"decidiu ajudar em {best}")
-                self.move_towards(best)
-                if self.pos == best:
-                    self.check_for_partner()
-                return
-
+        self.look_and_help()
         self.random_move()
 
-    def scan_for_structures(self):
-        self.known_structures.clear()
-        for x in range(self.model.grid.width):
-            for y in range(self.model.grid.height):
-                pos = (x, y)
-                cellmates = self.model.grid.get_cell_list_contents([pos])
-                if any(
+    def look_and_help(self):
+        neighbors = self.model.grid.get_neighborhood(
+            self.pos, moore=False, include_center=True
+        )
+        for pos in neighbors:
+            cellmates = self.model.grid.get_cell_list_contents([pos])
+            for obj in cellmates:
+                if (
                     hasattr(obj, "resource_type")
                     and obj.resource_type == ResourceType.STRUCTURE
-                    for obj in cellmates
                 ):
-                    self.known_structures.add(pos)
-
-    def choose_best_structure(self):
-        best_pos = None
-        best_util = -1
-        for pos in self.known_structures:
-            dist = self.manhattan_distance(pos)
-            waiting = sum(
-                1
-                for a in self.model.grid.get_cell_list_contents([pos])
-                if isinstance(a, Agent) and getattr(a, "waiting_for_help", False)
-            )
-            util = (1 / (dist + 1)) * (1 + waiting) * ResourceType.STRUCTURE.value
-            if util > best_util:
-                best_util = util
-                best_pos = pos
-        return best_pos
+                    self.move_towards(pos)
+                    self.waiting_for_help = True
+                    log(self, f"decidiu ajudar em {pos}")
+                    return
 
     def check_for_partner(self):
         cellmates = self.model.grid.get_cell_list_contents([self.pos])
+        has_structure = any(
+            hasattr(obj, "resource_type")
+            and obj.resource_type == ResourceType.STRUCTURE
+            for obj in cellmates
+        )
+
+        if not has_structure:
+            self.waiting_for_help = False
+            log(self, f"STRUCTURE não está mais em {self.pos}, cancelando ajuda")
+            return
+
         partners = [
             a
             for a in cellmates
@@ -80,6 +72,7 @@ class CooperativeAgent(Agent):
             and a.unique_id != self.unique_id
             and getattr(a, "waiting_for_help", False)
         ]
+
         for obj in cellmates:
             if (
                 hasattr(obj, "resource_type")
@@ -87,14 +80,11 @@ class CooperativeAgent(Agent):
             ):
                 self.model.grid.remove_agent(obj)
                 self.carrying = ResourceType.STRUCTURE
+                self.waiting_for_help = False
                 for partner in partners:
                     partner.carrying = ResourceType.STRUCTURE
                     partner.waiting_for_help = False
-                self.waiting_for_help = False
-                log(
-                    self,
-                    f"ajudou a coletar STRUCTURE com {partners[0].unique_id if partners else '?'}",
-                )
+                log(self, f"ajudou a coletar STRUCTURE com ?")
                 return
 
         self.waiting_for_help = True

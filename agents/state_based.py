@@ -13,7 +13,13 @@ class StateBasedAgent(Agent):
         self.memory = set()
         self.carrying = None
         self.waiting_for_help = False
-        self.current_task = None  # ← tarefa do BDI
+        self.current_task = None
+        self.name = "State-Based"
+        self.delivered = {
+            ResourceType.CRYSTAL: 0,
+            ResourceType.METAL: 0,
+            ResourceType.STRUCTURE: 0,
+        }
 
     def step(self):
         self.memory.add(self.pos)
@@ -22,7 +28,8 @@ class StateBasedAgent(Agent):
         if self.carrying:
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
-                self.model.base.deposit(self.carrying)
+                self.model.base.deposit(self.carrying, self.unique_id)
+                self.delivered[self.carrying] += 1
                 log(self, f"entregou {self.carrying.name} na base")
                 self.carrying = None
                 self.current_task = None
@@ -32,40 +39,16 @@ class StateBasedAgent(Agent):
             self.check_for_partner()
             return
 
-        # Se recebeu tarefa do BDI
         if self.current_task:
             target = self.current_task["position"]
             if target not in self.memory:
-                self.memory.add(target)  # marca como visto
+                self.memory.add(target)
             self.move_towards(target)
             if self.pos == target:
                 self.look_and_collect()
             return
 
-        # Comportamento normal
-        cellmates = self.model.grid.get_cell_list_contents([self.pos])
-        for mate in cellmates:
-            if (
-                isinstance(mate, Agent)
-                and mate.unique_id != self.unique_id
-                and getattr(mate, "waiting_for_help", False)
-            ):
-                for obj in cellmates:
-                    if (
-                        hasattr(obj, "resource_type")
-                        and obj.resource_type == ResourceType.STRUCTURE
-                    ):
-                        self.model.grid.remove_agent(obj)
-                        self.carrying = ResourceType.STRUCTURE
-                        self.waiting_for_help = False
-                        mate.carrying = ResourceType.STRUCTURE
-                        mate.waiting_for_help = False
-                        log(
-                            self,
-                            f"🤝 ajudou {mate.unique_id} a coletar STRUCTURE em {self.pos}",
-                        )
-                        return
-
+        self.check_and_help()
         self.look_and_collect()
         self.explore()
 
@@ -91,10 +74,8 @@ class StateBasedAgent(Agent):
             for obj in cellmates:
                 if not hasattr(obj, "resource_type"):
                     continue
-
                 r_type = obj.resource_type
 
-                # Envia percepção ao BDI
                 if hasattr(self.model, "message_bus"):
                     self.model.message_bus.send(
                         "BDI",
@@ -119,6 +100,30 @@ class StateBasedAgent(Agent):
                     self.waiting_for_help = True
                     log(self, f"esperando ajuda em {pos} para coletar STRUCTURE")
                     return
+
+    def check_and_help(self):
+        cellmates = self.model.grid.get_cell_list_contents([self.pos])
+        for mate in cellmates:
+            if (
+                isinstance(mate, Agent)
+                and mate.unique_id != self.unique_id
+                and getattr(mate, "waiting_for_help", False)
+            ):
+                for obj in cellmates:
+                    if (
+                        hasattr(obj, "resource_type")
+                        and obj.resource_type == ResourceType.STRUCTURE
+                    ):
+                        self.model.grid.remove_agent(obj)
+                        self.carrying = ResourceType.STRUCTURE
+                        self.waiting_for_help = False
+                        mate.carrying = ResourceType.STRUCTURE
+                        mate.waiting_for_help = False
+                        log(
+                            self,
+                            f"🤝 ajudou {mate.unique_id} a coletar STRUCTURE em {self.pos}",
+                        )
+                        return
 
     def check_for_partner(self):
         cellmates = self.model.grid.get_cell_list_contents([self.pos])
@@ -159,12 +164,7 @@ class StateBasedAgent(Agent):
             self.pos, moore=False, include_center=False
         )
         unexplored = [pos for pos in neighbors if pos not in self.memory]
-
-        if unexplored:
-            new_pos = choice(unexplored)
-        else:
-            new_pos = choice(neighbors)
-
+        new_pos = choice(unexplored) if unexplored else choice(neighbors)
         self.model.safe_move(self, new_pos)
         log(self, f"moveu-se para {new_pos}")
 
