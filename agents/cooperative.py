@@ -4,7 +4,7 @@ from random import choice
 
 
 def log(agent, msg):
-    print(f"[Cooperative {agent.unique_id}] {msg}")
+    print(f"[Coop {agent.unique_id}] {msg}")
 
 
 class CooperativeAgent(Agent):
@@ -12,13 +12,14 @@ class CooperativeAgent(Agent):
         super().__init__(unique_id, model)
         self.carrying = None
         self.waiting_for_help = False
+        self.known_structures = set()
 
     def step(self):
         if self.carrying:
-            self.move_towards_base()
+            self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying)
-                log(self, f"🎯 entregou {self.carrying.name} na base")
+                log(self, f"🎯 entregou STRUCTURE na base")
                 self.carrying = None
             return
 
@@ -26,42 +27,45 @@ class CooperativeAgent(Agent):
             self.check_for_partner()
             return
 
-        structure_pos = self.find_best_structure_to_help()
-        if structure_pos:
-            log(self, f"📍 indo ajudar com STRUCTURE em {structure_pos}")
-            self.move_towards(structure_pos)
-            if self.pos == structure_pos:
-                self.check_for_partner()
-            return
+        self.scan_for_structures()
+
+        if self.known_structures:
+            best = self.choose_best_structure()
+            if best:
+                log(self, f"🧮 decidiu ajudar em {best}")
+                self.move_towards(best)
+                if self.pos == best:
+                    self.check_for_partner()
+                return
 
         self.random_move()
 
-    def find_best_structure_to_help(self):
-        best_pos = None
-        best_score = -1
-        width, height = self.model.grid.width, self.model.grid.height
-
-        for x in range(width):
-            for y in range(height):
+    def scan_for_structures(self):
+        for x in range(self.model.grid.width):
+            for y in range(self.model.grid.height):
                 pos = (x, y)
                 cellmates = self.model.grid.get_cell_list_contents([pos])
-                has_structure = any(
+                if any(
                     hasattr(obj, "resource_type")
                     and obj.resource_type == ResourceType.STRUCTURE
                     for obj in cellmates
-                )
-                has_waiting_agent = any(
-                    isinstance(obj, Agent)
-                    and obj.unique_id != self.unique_id
-                    and getattr(obj, "waiting_for_help", False)
-                    for obj in cellmates
-                )
-                if has_structure and has_waiting_agent:
-                    distance = self.manhattan_distance(pos)
-                    score = 1 / distance if distance > 0 else 1.5
-                    if score > best_score:
-                        best_score = score
-                        best_pos = pos
+                ):
+                    self.known_structures.add(pos)
+
+    def choose_best_structure(self):
+        best_pos = None
+        best_util = -1
+        for pos in self.known_structures:
+            dist = self.manhattan_distance(pos)
+            waiting = sum(
+                1
+                for a in self.model.grid.get_cell_list_contents([pos])
+                if isinstance(a, Agent) and getattr(a, "waiting_for_help", False)
+            )
+            util = (1 / (dist + 1)) * (1 + waiting) * ResourceType.STRUCTURE.value
+            if util > best_util:
+                best_util = util
+                best_pos = pos
         return best_pos
 
     def check_for_partner(self):
@@ -73,51 +77,29 @@ class CooperativeAgent(Agent):
             and a.unique_id != self.unique_id
             and getattr(a, "waiting_for_help", False)
         ]
-
-        if partners:
-            for obj in cellmates:
-                if (
-                    hasattr(obj, "resource_type")
-                    and obj.resource_type == ResourceType.STRUCTURE
-                ):
-                    self.model.grid.remove_agent(obj)
-                    break
-            self.carrying = ResourceType.STRUCTURE
-            self.waiting_for_help = False
-            for partner in partners:
-                partner.carrying = ResourceType.STRUCTURE
-                partner.waiting_for_help = False
+        for obj in cellmates:
+            if (
+                hasattr(obj, "resource_type")
+                and obj.resource_type == ResourceType.STRUCTURE
+            ):
+                self.model.grid.remove_agent(obj)
+                self.carrying = ResourceType.STRUCTURE
+                for partner in partners:
+                    partner.carrying = ResourceType.STRUCTURE
+                    partner.waiting_for_help = False
+                self.waiting_for_help = False
                 log(
-                    partner,
-                    f"🤝 coletou STRUCTURE com ajuda de CooperativeAgent {self.unique_id}",
+                    self,
+                    f"💪 ajudou a coletar STRUCTURE com {partners[0].unique_id if partners else '?'}",
                 )
-            log(
-                self,
-                f"🧱 coletou STRUCTURE com ajuda de {partners[0].__class__.__name__} {partners[0].unique_id}",
-            )
-        else:
-            log(self, "⏳ chegou na STRUCTURE, mas ainda está esperando ajuda")
-            self.waiting_for_help = True
+                return
 
-    def move_towards_base(self):
-        x, y = self.pos
-        bx, by = self.model.base_position
-
-        if x < bx:
-            x += 1
-        elif x > bx:
-            x -= 1
-        elif y < by:
-            y += 1
-        elif y > by:
-            y -= 1
-
-        self.model.safe_move(self, (x, y))
+        self.waiting_for_help = True
+        log(self, f"⏳ chegou na STRUCTURE, aguardando parceiro")
 
     def move_towards(self, destination):
         x, y = self.pos
         dx, dy = destination
-
         if x < dx:
             x += 1
         elif x > dx:
@@ -126,7 +108,6 @@ class CooperativeAgent(Agent):
             y += 1
         elif y > dy:
             y -= 1
-
         self.model.safe_move(self, (x, y))
 
     def manhattan_distance(self, pos):

@@ -55,8 +55,12 @@ class ResourceModel(Model):
         _safe_move(self.grid, agent, pos, set())
 
     def create_agent(self, agent_type):
+        if agent_type == "BDI":
+            return BDIAgent("BDI", self, self.message_bus)
+
         uid = self.next_uid
         self.next_uid += 1
+
         if agent_type == "REACTIVE":
             return ReactiveAgent(uid, self)
         if agent_type == "STATE_BASED":
@@ -65,8 +69,7 @@ class ResourceModel(Model):
             return GoalBasedAgent(uid, self)
         if agent_type == "COOPERATIVE":
             return CooperativeAgent(uid, self)
-        if agent_type == "BDI":
-            return BDIAgent(uid, self, self.message_bus)
+
         raise ValueError(f"Tipo desconhecido: {agent_type}")
 
     def step(self):

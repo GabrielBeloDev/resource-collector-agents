@@ -13,78 +13,107 @@ class GoalBasedAgent(Agent):
         self.carrying = None
         self.known_resources = {}
         self.waiting_for_help = False
+        self.current_task = None
 
     def step(self):
+        self.receive_messages()
+        self.scan_environment()
+        self.clean_invalid_memory()
+
         if self.carrying:
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying)
                 log(self, f"🎯 entregou {self.carrying.name} na base")
                 self.carrying = None
+                self.current_task = None
             return
-
-        self.update_knowledge()
-        self.clean_known_resources()
 
         if self.waiting_for_help:
             self.check_for_partner()
             return
 
-        if self.known_resources:
-            target = self.get_best_resource()
-            log(
-                self,
-                f"📌 indo para recurso em {target} ({self.known_resources[target].name})",
-            )
-            self.move_towards(target)
+        if self.current_task:
+            target = self.current_task["position"]
+            if target not in self.known_resources:
+                log(self, f"❌ tarefa ignorada: recurso não está mais em {target}")
+                self.current_task = None
+            else:
+                self.move_towards(target)
+                if self.pos == target:
+                    self.collect_resource()
+            return
 
+        if self.known_resources:
+            target = self.choose_best_resource()
+            self.move_towards(target)
             if self.pos == target:
                 self.collect_resource()
         else:
             self.random_move()
 
-    def update_knowledge(self):
-        cellmates = self.model.grid.get_cell_list_contents([self.pos])
-        for obj in cellmates:
+    def receive_messages(self):
+        if hasattr(self.model, "message_bus"):
+            for msg in self.model.message_bus.receive(str(self.unique_id)):
+                if msg["type"] == "task" and msg["action"] == "collect":
+                    self.current_task = {
+                        "position": tuple(msg["position"]),
+                        "resource_type": msg["resource_type"],
+                    }
+                    log(
+                        self,
+                        f"📥 recebeu tarefa de coletar {msg['resource_type']} em {msg['position']}",
+                    )
+
+    def scan_environment(self):
+        for obj in self.model.grid.get_cell_list_contents([self.pos]):
             if hasattr(obj, "resource_type"):
                 self.known_resources[self.pos] = obj.resource_type
-                log(
-                    self,
-                    f"🧠 memorizou {obj.resource_type.name} na própria célula {self.pos}",
-                )
+                if hasattr(self.model, "message_bus"):
+                    self.model.message_bus.send(
+                        "BDI",
+                        {
+                            "type": "belief",
+                            "data": {
+                                "position": self.pos,
+                                "resource_type": obj.resource_type.name,
+                            },
+                        },
+                    )
 
-        neighbors = self.model.grid.get_neighborhood(
+        for pos in self.model.grid.get_neighborhood(
             self.pos, moore=False, include_center=False
-        )
-        for pos in neighbors:
+        ):
             for obj in self.model.grid.get_cell_list_contents([pos]):
-                if hasattr(obj, "resource_type"):
-                    if pos not in self.known_resources:
-                        self.known_resources[pos] = obj.resource_type
-                        log(
-                            self,
-                            f"🧠 viu e memorizou {obj.resource_type.name} em {pos}",
+                if hasattr(obj, "resource_type") and pos not in self.known_resources:
+                    self.known_resources[pos] = obj.resource_type
+                    log(self, f"👀 viu {obj.resource_type.name} em {pos}")
+                    if hasattr(self.model, "message_bus"):
+                        self.model.message_bus.send(
+                            "BDI",
+                            {
+                                "type": "belief",
+                                "data": {
+                                    "position": pos,
+                                    "resource_type": obj.resource_type.name,
+                                },
+                            },
                         )
 
-    def clean_known_resources(self):
-        to_delete = []
-        for pos in self.known_resources:
-            cellmates = self.model.grid.get_cell_list_contents([pos])
-            if not any(hasattr(obj, "resource_type") for obj in cellmates):
-                to_delete.append(pos)
-                log(self, f"🗑️ removeu recurso de {pos} da memória")
+    def clean_invalid_memory(self):
+        for pos in list(self.known_resources):
+            if not any(
+                hasattr(obj, "resource_type")
+                for obj in self.model.grid.get_cell_list_contents([pos])
+            ):
+                del self.known_resources[pos]
 
-        for pos in to_delete:
-            del self.known_resources[pos]
-
-    def get_best_resource(self):
+    def choose_best_resource(self):
         best = None
         best_score = -1
         for pos, r_type in self.known_resources.items():
             dist = self.manhattan_distance(pos)
-            if dist == 0:
-                return pos
-            score = r_type.value / dist
+            score = r_type.value / (dist + 1)
             if score > best_score:
                 best = pos
                 best_score = score
@@ -97,68 +126,49 @@ class GoalBasedAgent(Agent):
                 if obj.resource_type in (ResourceType.CRYSTAL, ResourceType.METAL):
                     self.model.grid.remove_agent(obj)
                     self.carrying = obj.resource_type
-                    del self.known_resources[self.pos]
                     log(self, f"🎒 coletou {obj.resource_type.name} em {self.pos}")
+                    del self.known_resources[self.pos]
+                    self.current_task = None
                     return
                 elif obj.resource_type == ResourceType.STRUCTURE:
-                    partners = [
-                        a
-                        for a in cellmates
-                        if isinstance(a, Agent)
-                        and a.unique_id != self.unique_id
-                        and getattr(a, "waiting_for_help", False)
-                    ]
-                    if partners:
-                        self.model.grid.remove_agent(obj)
-                        self.carrying = ResourceType.STRUCTURE
-                        self.waiting_for_help = False
-                        for partner in partners:
-                            partner.carrying = ResourceType.STRUCTURE
-                            partner.waiting_for_help = False
-                            log(
-                                partner,
-                                f"🤝 coletou STRUCTURE com ajuda de {self.__class__.__name__} {self.unique_id}",
-                            )
-                        log(
-                            self,
-                            f"🧱 coletou STRUCTURE com ajuda de {partners[0].__class__.__name__} {partners[0].unique_id}",
-                        )
-                    else:
-                        log(
-                            self,
-                            "⏳ encontrou STRUCTURE mas está sozinho, esperando ajuda",
-                        )
-                        self.waiting_for_help = True
-                    return
+                    self.waiting_for_help = True
+                    log(self, "⏳ esperando parceiro para coletar STRUCTURE")
 
     def check_for_partner(self):
         cellmates = self.model.grid.get_cell_list_contents([self.pos])
+        has_structure = any(
+            hasattr(obj, "resource_type")
+            and obj.resource_type == ResourceType.STRUCTURE
+            for obj in cellmates
+        )
+        if not has_structure:
+            self.waiting_for_help = False
+            return
+
         partners = [
             a
             for a in cellmates
-            if isinstance(a, Agent) and a.unique_id != self.unique_id
+            if isinstance(a, Agent)
+            and a.unique_id != self.unique_id
+            and getattr(a, "waiting_for_help", False)
         ]
-        if partners:
-            for obj in cellmates:
-                if (
-                    hasattr(obj, "resource_type")
-                    and obj.resource_type == ResourceType.STRUCTURE
-                ):
-                    self.model.grid.remove_agent(obj)
-                    self.carrying = ResourceType.STRUCTURE
-                    self.waiting_for_help = False
-                    log(
-                        self,
-                        f"🧱 coletou STRUCTURE com ajuda de agente {partners[0].unique_id}",
-                    )
-                    break
-        else:
-            log(self, "⏳ aguardando parceiro para pegar STRUCTURE")
+        for obj in cellmates:
+            if (
+                hasattr(obj, "resource_type")
+                and obj.resource_type == ResourceType.STRUCTURE
+            ):
+                self.model.grid.remove_agent(obj)
+                self.carrying = ResourceType.STRUCTURE
+                self.waiting_for_help = False
+                for partner in partners:
+                    partner.carrying = ResourceType.STRUCTURE
+                    partner.waiting_for_help = False
+                    log(self, f"🤝 coletou STRUCTURE com ajuda de {partner.unique_id}")
+                return
 
     def move_towards(self, destination):
         x, y = self.pos
         dx, dy = destination
-
         if x < dx:
             x += 1
         elif x > dx:
@@ -167,7 +177,6 @@ class GoalBasedAgent(Agent):
             y += 1
         elif y > dy:
             y -= 1
-
         self.model.safe_move(self, (x, y))
 
     def manhattan_distance(self, pos):
@@ -180,4 +189,4 @@ class GoalBasedAgent(Agent):
         if neighbors:
             new_pos = choice(neighbors)
             self.model.safe_move(self, new_pos)
-            log(self, f"🤷‍♂️ andou aleatoriamente para {self.pos}")
+            log(self, f"🚶‍♂️ moveu aleatoriamente para {new_pos}")
