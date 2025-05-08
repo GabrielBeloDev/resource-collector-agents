@@ -14,12 +14,18 @@ class CooperativeAgent(Agent):
         self.waiting_for_help = False
         self.known_structures = set()
         self.target = None
+        self.delivered = {
+            ResourceType.CRYSTAL: 0,
+            ResourceType.METAL: 0,
+            ResourceType.STRUCTURE: 0,
+        }
 
     def step(self):
         if self.carrying:
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
-                self.model.base.deposit(self.carrying)
+                self.model.base.deposit(self.carrying, self.unique_id)
+                self.delivered[self.carrying] += 1
                 log(self, f"entregou STRUCTURE na base")
                 self.carrying = None
             return
@@ -123,4 +129,4 @@ class CooperativeAgent(Agent):
         if neighbors:
             new_pos = choice(neighbors)
             self.model.safe_move(self, new_pos)
-            log(self, f"andou aleatoriamente para {new_pos}")
+            log(self, f"andou para {new_pos}")

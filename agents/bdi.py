@@ -39,7 +39,7 @@ class BDIAgent(Agent):
         for pos in to_remove:
             log(
                 self,
-                f"❌ recurso {self.beliefs[pos].name} desapareceu de {pos}, removendo",
+                f"recurso {self.beliefs[pos].name} desapareceu de {pos}, removendo",
             )
             del self.beliefs[pos]
             self.assigned_tasks.discard(pos)

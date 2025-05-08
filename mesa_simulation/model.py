@@ -48,6 +48,15 @@ class ResourceModel(Model):
             self.schedule.add(a)
             self.grid.place_agent(a, pos)
 
+        self.agents_log = {}
+        for agent in self.schedule.agents:
+            if hasattr(agent, "delivered"):
+                self.agents_log[agent.unique_id] = {
+                    ResourceType.CRYSTAL: 0,
+                    ResourceType.METAL: 0,
+                    ResourceType.STRUCTURE: 0,
+                }
+
         for r in resources:
             pos = tuple(r["position"])
             ra = ResourceAgent(self.next_uid, self, ResourceType[r["type"]])
@@ -59,26 +68,36 @@ class ResourceModel(Model):
 
     def create_agent(self, agent_type):
         if agent_type == "BDI":
-            return BDIAgent("BDI", self, self.message_bus)
+            a = BDIAgent("BDI", self, self.message_bus)
+            a.name = "BDI"
+            return a
 
         uid = self.next_uid
         self.next_uid += 1
 
         if agent_type == "REACTIVE":
-            return ReactiveAgent(uid, self)
+            a = ReactiveAgent(uid, self)
+            a.name = "Reactive"
+            return a
         if agent_type == "STATE_BASED":
-            return StateBasedAgent(uid, self)
+            a = StateBasedAgent(uid, self)
+            a.name = "State-Based"
+            return a
         if agent_type == "GOAL_BASED":
-            return GoalBasedAgent(uid, self)
+            a = GoalBasedAgent(uid, self)
+            a.name = "Goal-Based"
+            return a
         if agent_type == "COOPERATIVE":
-            return CooperativeAgent(uid, self)
+            a = CooperativeAgent(uid, self)
+            a.name = "Cooperative"
+            return a
 
         raise ValueError(f"Tipo desconhecido: {agent_type}")
 
     def step(self):
         print(f"\n─── PASSO {self.schedule.time:03} ───")
         if self.schedule.time >= self.max_steps:
-            print("🌩️ Tempestade de radiação! Encerrando a coleta.")
+            print("Tempestade de radiação! Encerrando a coleta.")
             self.running = False
             return
         self.schedule.step()

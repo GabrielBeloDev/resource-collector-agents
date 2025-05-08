@@ -11,12 +11,18 @@ class ReactiveAgent(Agent):
     def __init__(self, unique_id, model):
         super().__init__(unique_id, model)
         self.carrying = None
+        self.delivered = {
+            ResourceType.CRYSTAL: 0,
+            ResourceType.METAL: 0,
+            ResourceType.STRUCTURE: 0,
+        }
 
     def step(self):
         if self.carrying:
             self.move_towards_base()
             if self.pos == self.model.base_position:
-                self.model.base.deposit(self.carrying)
+                self.model.base.deposit(self.carrying, self.unique_id)
+                self.delivered[self.carrying] += 1
                 log(self, f"entregou {self.carrying.name} na base")
                 self.carrying = None
             return

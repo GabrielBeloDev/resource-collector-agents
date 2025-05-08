@@ -14,6 +14,11 @@ class GoalBasedAgent(Agent):
         self.known_resources = {}
         self.waiting_for_help = False
         self.current_task = None
+        self.delivered = {
+            ResourceType.CRYSTAL: 0,
+            ResourceType.METAL: 0,
+            ResourceType.STRUCTURE: 0,
+        }
 
     def step(self):
         self.receive_messages()
@@ -23,7 +28,8 @@ class GoalBasedAgent(Agent):
         if self.carrying:
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
-                self.model.base.deposit(self.carrying)
+                self.model.base.deposit(self.carrying, self.unique_id)
+                self.delivered[self.carrying] += 1
                 log(self, f"entregou {self.carrying.name} na base")
                 self.carrying = None
                 self.current_task = None
@@ -62,7 +68,7 @@ class GoalBasedAgent(Agent):
                     }
                     log(
                         self,
-                        f"📥 recebeu tarefa de coletar {msg['resource_type']} em {msg['position']}",
+                        f"recebeu tarefa de coletar {msg['resource_type']} em {msg['position']}",
                     )
 
     def scan_environment(self):
@@ -189,4 +195,4 @@ class GoalBasedAgent(Agent):
         if neighbors:
             new_pos = choice(neighbors)
             self.model.safe_move(self, new_pos)
-            log(self, f"moveu aleatoriamente para {new_pos}")
+            log(self, f"moveu para {new_pos}")

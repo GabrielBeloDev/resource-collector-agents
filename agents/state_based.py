@@ -13,7 +13,12 @@ class StateBasedAgent(Agent):
         self.memory = set()
         self.carrying = None
         self.waiting_for_help = False
-        self.current_task = None  # ← tarefa do BDI
+        self.current_task = None
+        self.delivered = {
+            ResourceType.CRYSTAL: 0,
+            ResourceType.METAL: 0,
+            ResourceType.STRUCTURE: 0,
+        }
 
     def step(self):
         self.memory.add(self.pos)
@@ -22,7 +27,8 @@ class StateBasedAgent(Agent):
         if self.carrying:
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
-                self.model.base.deposit(self.carrying)
+                self.model.base.deposit(self.carrying, self.unique_id)
+                self.delivered[self.carrying] += 1
                 log(self, f"entregou {self.carrying.name} na base")
                 self.carrying = None
                 self.current_task = None
