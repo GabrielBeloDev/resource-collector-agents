@@ -32,9 +32,12 @@ class ResourceModel(Model):
         self.grid = MultiGrid(width, height, torus=False)
         self.schedule = RandomActivation(self)
         self.base_position = (0, 0)
-        self.base = Base(position=None)
+        self.base = Base(self, position=None)
+        self.total_resources = len(resources)
         self.message_bus = MessageBus()
         self.next_uid = 0
+        self.max_steps = 100
+        self.running = True
 
         self.grid.place_agent(BaseAgent(self.next_uid, self), self.base_position)
         self.next_uid += 1
@@ -74,4 +77,8 @@ class ResourceModel(Model):
 
     def step(self):
         print(f"\n─── PASSO {self.schedule.time:03} ───")
+        if self.schedule.time >= self.max_steps:
+            print("🌩️ Tempestade de radiação! Encerrando a coleta.")
+            self.running = False
+            return
         self.schedule.step()

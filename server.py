@@ -1,8 +1,51 @@
 from mesa.visualization.ModularVisualization import ModularServer
-from mesa.visualization.modules import CanvasGrid, ChartModule
-from mesa import Model, Agent
+from mesa.visualization.modules import CanvasGrid, TextElement
+from mesa.datacollection import DataCollector
+
 from mesa_simulation.model import ResourceModel
 from environment.resource import ResourceType
+
+VALUE_MAP = {
+    ResourceType.CRYSTAL: 1,
+    ResourceType.METAL: 3,
+    ResourceType.STRUCTURE: 10,
+}
+
+
+def _utility(model):
+    storage = getattr(model.base, "storage", {})
+    return sum(storage.get(rt, 0) * val for rt, val in VALUE_MAP.items())
+
+
+def _count(resource):
+    return lambda m: getattr(m.base, "storage", {}).get(resource, 0)
+
+
+class InstrumentedModel(ResourceModel):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.datacollector = DataCollector(
+            model_reporters={
+                "Utility": _utility,
+                "Cristais": _count(ResourceType.CRYSTAL),
+                "Metais": _count(ResourceType.METAL),
+                "Estruturas": _count(ResourceType.STRUCTURE),
+            }
+        )
+
+    def step(self):
+        self.datacollector.collect(self)
+        super().step()
+
+
+class InfoPanel(TextElement):
+    def render(self, model):
+        step = model.schedule.steps
+        util = _utility(model)
+        c = _count(ResourceType.CRYSTAL)(model)
+        m_ = _count(ResourceType.METAL)(model)
+        s = _count(ResourceType.STRUCTURE)(model)
+        return f"Passo: {step}"
 
 
 def agent_portrayal(agent):
@@ -33,12 +76,19 @@ def agent_portrayal(agent):
             ResourceType.METAL: "silver",
             ResourceType.STRUCTURE: "black",
         }
+        label_map = {
+            ResourceType.CRYSTAL: "C",
+            ResourceType.METAL: "M",
+            ResourceType.STRUCTURE: "S",
+        }
         return {
             "Shape": "circle",
             "Color": color_map[agent.resource_type],
             "Filled": "true",
             "Layer": 0,
             "r": 0.4,
+            "text": label_map[agent.resource_type],
+            "text_color": "white",
         }
 
     class_color = {
@@ -55,6 +105,8 @@ def agent_portrayal(agent):
         "Color": class_color.get(agent.__class__.__name__, "gray"),
         "Filled": "true",
         "Layer": 1,
+        "text": str(agent.unique_id),
+        "text_color": "black",
     }
 
 
@@ -63,8 +115,8 @@ params = {
     "height": 15,
     "agent_configs": [
         {"type": "BDI", "position": [0, 0]},
-        {"type": "STATE_BASED", "position": [0, 0]},
-        {"type": "GOAL_BASED", "position": [0, 0]},
+        # {"type": "STATE_BASED", "position": [0, 0]},
+        # {"type": "GOAL_BASED", "position": [0, 0]},
         {"type": "REACTIVE", "position": [0, 0]},
     ],
     "resources": [
@@ -77,6 +129,9 @@ params = {
         {"type": "METAL", "position": [4, 8]},
         {"type": "METAL", "position": [12, 2]},
         {"type": "STRUCTURE", "position": [1, 1]},
+        {"type": "CRYSTAL", "position": [2, 1]},
+        {"type": "CRYSTAL", "position": [4, 3]},
+        {"type": "CRYSTAL", "position": [2, 2]},
     ],
     "obstacles": [],
 }
@@ -91,16 +146,16 @@ grid = CanvasGrid(
 )
 
 
-chart = ChartModule(
-    [{"Label": "Utility", "Color": "black"}],
-    data_collector_name=None,
-)
+info = InfoPanel()
 
 server = ModularServer(
-    ResourceModel,
-    [grid],
-    "Resource‑Collector Agents",
+    InstrumentedModel,
+    [grid, info],
+    "Resource‑Collector Agents (v3)",
     params,
 )
+
 server.port = 8521
-server.launch()
+
+if __name__ == "__main__":
+    server.launch()
