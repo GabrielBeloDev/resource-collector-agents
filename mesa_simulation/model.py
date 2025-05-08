@@ -36,7 +36,7 @@ class ResourceModel(Model):
         self.total_resources = len(resources)
         self.message_bus = MessageBus()
         self.next_uid = 0
-        self.max_steps = 100
+        self.max_steps = 200
         self.running = True
 
         self.grid.place_agent(BaseAgent(self.next_uid, self), self.base_position)

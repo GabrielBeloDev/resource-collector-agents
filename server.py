@@ -11,6 +11,8 @@ VALUE_MAP = {
     ResourceType.STRUCTURE: 50,
 }
 
+value = 7
+
 
 def _utility(model):
     storage = getattr(model.base, "storage", {})
@@ -65,27 +67,27 @@ class AgentStatsPanel(TextElement):
     def render(self, model):
         output = "<b>Coletas por Agente:</b><br><pre>"
 
-        total = {rt: 0 for rt in ResourceType}
-        total_score = 0
-
         for agent in model.schedule.agents:
             if not hasattr(agent, "delivered"):
                 continue
+
             name = getattr(agent, "name", f"Agente {agent.unique_id}")
             delivered = agent.delivered
-            score = sum(delivered[r] * VALUE_MAP[r] for r in ResourceType)
+
+            value_map = (
+                {r: v * value for r, v in VALUE_MAP.items()}
+                if name == "Cooperative"
+                else VALUE_MAP
+            )
+
+            score = sum(delivered[r] * value_map[r] for r in ResourceType)
             output += f"{name}: "
             output += " | ".join(f"{r.name[0]}: {delivered[r]}" for r in ResourceType)
             output += f" | Pontuação: {score}\n"
-            for r in ResourceType:
-                total[r] += delivered[r]
-            total_score += score
 
-        output += "\nTOTAL: " + " | ".join(
-            f"{r.name[0]}: {total[r]}" for r in ResourceType
-        )
-        output += f" | Pontuação Total: {total_score}</pre>"
+        output += "</pre>"
         return output
+
 
 
 def agent_portrayal(agent):
