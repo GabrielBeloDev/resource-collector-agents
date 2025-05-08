@@ -13,6 +13,7 @@ class CooperativeAgent(Agent):
         self.carrying = None
         self.waiting_for_help = False
         self.known_structures = set()
+        self.target = None
 
     def step(self):
         if self.carrying:
@@ -32,6 +33,7 @@ class CooperativeAgent(Agent):
         if self.known_structures:
             best = self.choose_best_structure()
             if best:
+                self.target = best
                 log(self, f"🧮 decidiu ajudar em {best}")
                 self.move_towards(best)
                 if self.pos == best:
@@ -41,6 +43,7 @@ class CooperativeAgent(Agent):
         self.random_move()
 
     def scan_for_structures(self):
+        self.known_structures.clear()
         for x in range(self.model.grid.width):
             for y in range(self.model.grid.height):
                 pos = (x, y)
@@ -120,4 +123,4 @@ class CooperativeAgent(Agent):
         if neighbors:
             new_pos = choice(neighbors)
             self.model.safe_move(self, new_pos)
-            log(self, f"🤷‍♂️ andou aleatoriamente para {self.pos}")
+            log(self, f"🤷‍♂️ andou aleatoriamente para {new_pos}")

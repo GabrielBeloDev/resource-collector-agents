@@ -65,6 +65,7 @@ params = {
         {"type": "BDI", "position": [0, 0]},
         {"type": "STATE_BASED", "position": [0, 0]},
         {"type": "GOAL_BASED", "position": [0, 0]},
+        {"type": "REACTIVE", "position": [0, 0]},
     ],
     "resources": [
         {"type": "CRYSTAL", "position": [2, 3]},
