@@ -20,7 +20,7 @@ class CooperativeAgent(Agent):
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying)
-                log(self, f"🎯 entregou STRUCTURE na base")
+                log(self, f"entregou STRUCTURE na base")
                 self.carrying = None
             return
 
@@ -34,7 +34,7 @@ class CooperativeAgent(Agent):
             best = self.choose_best_structure()
             if best:
                 self.target = best
-                log(self, f"🧮 decidiu ajudar em {best}")
+                log(self, f"decidiu ajudar em {best}")
                 self.move_towards(best)
                 if self.pos == best:
                     self.check_for_partner()
@@ -93,12 +93,12 @@ class CooperativeAgent(Agent):
                 self.waiting_for_help = False
                 log(
                     self,
-                    f"💪 ajudou a coletar STRUCTURE com {partners[0].unique_id if partners else '?'}",
+                    f"ajudou a coletar STRUCTURE com {partners[0].unique_id if partners else '?'}",
                 )
                 return
 
         self.waiting_for_help = True
-        log(self, f"⏳ chegou na STRUCTURE, aguardando parceiro")
+        log(self, f"chegou na STRUCTURE, aguardando parceiro")
 
     def move_towards(self, destination):
         x, y = self.pos
@@ -123,4 +123,4 @@ class CooperativeAgent(Agent):
         if neighbors:
             new_pos = choice(neighbors)
             self.model.safe_move(self, new_pos)
-            log(self, f"🤷‍♂️ andou aleatoriamente para {new_pos}")
+            log(self, f"andou aleatoriamente para {new_pos}")

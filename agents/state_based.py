@@ -23,7 +23,7 @@ class StateBasedAgent(Agent):
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying)
-                log(self, f"🎯 entregou {self.carrying.name} na base")
+                log(self, f"entregou {self.carrying.name} na base")
                 self.carrying = None
                 self.current_task = None
             return
@@ -110,14 +110,14 @@ class StateBasedAgent(Agent):
                 if r_type in (ResourceType.CRYSTAL, ResourceType.METAL):
                     self.model.grid.remove_agent(obj)
                     self.carrying = r_type
-                    log(self, f"🎒 coletou {r_type.name} em {pos}")
+                    log(self, f"coletou {r_type.name} em {pos}")
                     self.current_task = None
                     return
 
                 elif r_type == ResourceType.STRUCTURE:
                     self.move_towards(pos)
                     self.waiting_for_help = True
-                    log(self, f"⏳ esperando ajuda em {pos} para coletar STRUCTURE")
+                    log(self, f"esperando ajuda em {pos} para coletar STRUCTURE")
                     return
 
     def check_for_partner(self):
@@ -129,7 +129,7 @@ class StateBasedAgent(Agent):
         )
         if not has_structure:
             self.waiting_for_help = False
-            log(self, f"❌ cancelou espera: STRUCTURE não está mais em {self.pos}")
+            log(self, f"cancelou espera: STRUCTURE não está mais em {self.pos}")
             return
 
         partners = [
@@ -151,7 +151,7 @@ class StateBasedAgent(Agent):
                 for partner in partners:
                     partner.carrying = ResourceType.STRUCTURE
                     partner.waiting_for_help = False
-                    log(self, f"🤝 coletou STRUCTURE com ajuda de {partner.unique_id}")
+                    log(self, f"coletou STRUCTURE com ajuda de {partner.unique_id}")
                 return
 
     def explore(self):
@@ -166,7 +166,7 @@ class StateBasedAgent(Agent):
             new_pos = choice(neighbors)
 
         self.model.safe_move(self, new_pos)
-        log(self, f"🧭 moveu-se para {new_pos}")
+        log(self, f"moveu-se para {new_pos}")
 
     def move_towards(self, destination):
         x, y = self.pos

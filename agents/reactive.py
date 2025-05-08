@@ -17,7 +17,7 @@ class ReactiveAgent(Agent):
             self.move_towards_base()
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying)
-                log(self, f"🎯 entregou {self.carrying.name} na base")
+                log(self, f"entregou {self.carrying.name} na base")
                 self.carrying = None
             return
 
@@ -33,7 +33,7 @@ class ReactiveAgent(Agent):
                 if r_type in (ResourceType.CRYSTAL, ResourceType.METAL):
                     self.model.grid.remove_agent(obj)
                     self.carrying = r_type
-                    log(self, f"🎒 coletou {r_type.name} em {self.pos}")
+                    log(self, f"coletou {r_type.name} em {self.pos}")
                     return True
         return False
 
@@ -57,4 +57,4 @@ class ReactiveAgent(Agent):
         if neighbors:
             new_pos = choice(neighbors)
             self.model.safe_move(self, new_pos)
-            log(self, f"🤷‍♂️ andou aleatoriamente para {new_pos}")
+            log(self, f"andou aleatoriamente para {new_pos}")

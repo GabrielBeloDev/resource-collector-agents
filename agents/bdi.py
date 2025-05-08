@@ -22,10 +22,10 @@ class BDIAgent(Agent):
                 r_type = ResourceType[msg["data"]["resource_type"]]
                 self.beliefs[pos] = r_type
                 recebeu_alguma_coisa = True
-                log(self, f"🧠 crença atualizada: {r_type.name} em {pos}")
+                log(self, f"crença atualizada: {r_type.name} em {pos}")
 
         if recebeu_alguma_coisa:
-            log(self, f"📥 total de crenças armazenadas: {len(self.beliefs)}")
+            log(self, f"total de crenças armazenadas: {len(self.beliefs)}")
 
         to_remove = []
         for pos, r_type in self.beliefs.items():
@@ -45,7 +45,7 @@ class BDIAgent(Agent):
             self.assigned_tasks.discard(pos)
 
         if not self.beliefs:
-            log(self, "📊 painel de recursos: vazio")
+            log(self, "painel de recursos: vazio")
             return
 
         def utilidade(item):
@@ -64,7 +64,7 @@ class BDIAgent(Agent):
         ]
 
         if not recursos_disponiveis:
-            log(self, "🕵️‍♂️ todos os recursos já foram atribuídos")
+            log(self, "todos os recursos já foram atribuídos")
             return
 
         best_pos, best_type = max(recursos_disponiveis, key=utilidade)
@@ -76,7 +76,7 @@ class BDIAgent(Agent):
         ]
 
         if not agentes_livres:
-            log(self, "🙅‍♂️ nenhum agente livre para executar tarefa")
+            log(self, "nenhum agente livre para executar tarefa")
             return
 
         nearest = min(
@@ -95,11 +95,11 @@ class BDIAgent(Agent):
 
         log(
             self,
-            f"📩 tarefa enviada → agente {nearest.unique_id} vai coletar {best_type.name} em {best_pos}",
+            f"tarefa enviada → agente {nearest.unique_id} vai coletar {best_type.name} em {best_pos}",
         )
         log(
             self,
-            f"📦 tarefas em andamento: {len(self.assigned_tasks)} | crenças ativas: {len(self.beliefs)}",
+            f"tarefas em andamento: {len(self.assigned_tasks)} | crenças ativas: {len(self.beliefs)}",
         )
 
     def manhattan_distance(self, pos):

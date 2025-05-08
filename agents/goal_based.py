@@ -24,7 +24,7 @@ class GoalBasedAgent(Agent):
             self.move_towards(self.model.base_position)
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying)
-                log(self, f"🎯 entregou {self.carrying.name} na base")
+                log(self, f"entregou {self.carrying.name} na base")
                 self.carrying = None
                 self.current_task = None
             return
@@ -36,7 +36,7 @@ class GoalBasedAgent(Agent):
         if self.current_task:
             target = self.current_task["position"]
             if target not in self.known_resources:
-                log(self, f"❌ tarefa ignorada: recurso não está mais em {target}")
+                log(self, f"tarefa ignorada: recurso não está mais em {target}")
                 self.current_task = None
             else:
                 self.move_towards(target)
@@ -87,7 +87,7 @@ class GoalBasedAgent(Agent):
             for obj in self.model.grid.get_cell_list_contents([pos]):
                 if hasattr(obj, "resource_type") and pos not in self.known_resources:
                     self.known_resources[pos] = obj.resource_type
-                    log(self, f"👀 viu {obj.resource_type.name} em {pos}")
+                    log(self, f"viu {obj.resource_type.name} em {pos}")
                     if hasattr(self.model, "message_bus"):
                         self.model.message_bus.send(
                             "BDI",
@@ -126,13 +126,13 @@ class GoalBasedAgent(Agent):
                 if obj.resource_type in (ResourceType.CRYSTAL, ResourceType.METAL):
                     self.model.grid.remove_agent(obj)
                     self.carrying = obj.resource_type
-                    log(self, f"🎒 coletou {obj.resource_type.name} em {self.pos}")
+                    log(self, f"coletou {obj.resource_type.name} em {self.pos}")
                     del self.known_resources[self.pos]
                     self.current_task = None
                     return
                 elif obj.resource_type == ResourceType.STRUCTURE:
                     self.waiting_for_help = True
-                    log(self, "⏳ esperando parceiro para coletar STRUCTURE")
+                    log(self, "esperando parceiro para coletar STRUCTURE")
 
     def check_for_partner(self):
         cellmates = self.model.grid.get_cell_list_contents([self.pos])
@@ -163,7 +163,7 @@ class GoalBasedAgent(Agent):
                 for partner in partners:
                     partner.carrying = ResourceType.STRUCTURE
                     partner.waiting_for_help = False
-                    log(self, f"🤝 coletou STRUCTURE com ajuda de {partner.unique_id}")
+                    log(self, f"coletou STRUCTURE com ajuda de {partner.unique_id}")
                 return
 
     def move_towards(self, destination):
@@ -189,4 +189,4 @@ class GoalBasedAgent(Agent):
         if neighbors:
             new_pos = choice(neighbors)
             self.model.safe_move(self, new_pos)
-            log(self, f"🚶‍♂️ moveu aleatoriamente para {new_pos}")
+            log(self, f"moveu aleatoriamente para {new_pos}")
