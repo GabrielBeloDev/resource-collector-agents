@@ -1,62 +1,110 @@
 from mesa.visualization.ModularVisualization import ModularServer
-from mesa.visualization.modules import CanvasGrid, ChartModule
-from mesa import Model, Agent
+from mesa.visualization.modules import CanvasGrid, TextElement
+from mesa.datacollection import DataCollector
+
 from mesa_simulation.model import ResourceModel
 from environment.resource import ResourceType
 
+# ────────────────────────────────────────────────────────────────────────────────
+# Helpers – utilidade e contagem de recursos na Base
+# ────────────────────────────────────────────────────────────────────────────────
+
+VALUE_MAP = {
+    ResourceType.CRYSTAL: 1,
+    ResourceType.METAL: 3,
+    ResourceType.STRUCTURE: 10,
+}
+
+def _utility(model):
+    """Calcula utilidade como soma(quantidade × valor) no depósito da Base."""
+    storage = getattr(model.base, "storage", {})
+    return sum(storage.get(rt, 0) * val for rt, val in VALUE_MAP.items())
+
+
+def _count(resource):
+    return lambda m: getattr(m.base, "storage", {}).get(resource, 0)
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Modelo instrumentado – coleta métricas a cada passo
+# ────────────────────────────────────────────────────────────────────────────────
+
+class InstrumentedModel(ResourceModel):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.datacollector = DataCollector(
+            model_reporters={
+                "Utility": _utility,
+                "Cristais": _count(ResourceType.CRYSTAL),
+                "Metais": _count(ResourceType.METAL),
+                "Estruturas": _count(ResourceType.STRUCTURE),
+            }
+        )
+
+    def step(self):
+        self.datacollector.collect(self)
+        super().step()
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Painel textual
+# ────────────────────────────────────────────────────────────────────────────────
+
+class InfoPanel(TextElement):
+    def render(self, model):
+        step = model.schedule.steps
+        util = _utility(model)
+        c = _count(ResourceType.CRYSTAL)(model)
+        m_ = _count(ResourceType.METAL)(model)
+        s = _count(ResourceType.STRUCTURE)(model)
+        return f"Passo: {step}"
+
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Portrayal
+# ────────────────────────────────────────────────────────────────────────────────
 
 def agent_portrayal(agent):
+    # Base
     if agent.__class__.__name__ == "BaseAgent":
         return {
-            "Shape": "rect",
-            "w": 1,
-            "h": 1,
-            "Color": "white",
-            "Filled": "true",
-            "Layer": 0,
+            "Shape": "rect", "w": 1, "h": 1, "Color": "white", "Filled": "true", "Layer": 0,
             "stroke_color": "black",
         }
 
+    # Obstáculo
     if agent.__class__.__name__ == "ObstacleAgent":
         return {
-            "Shape": "rect",
-            "w": 1,
-            "h": 1,
-            "Color": "#555",
-            "Filled": "true",
-            "Layer": 0,
+            "Shape": "rect", "w": 1, "h": 1, "Color": "#555", "Filled": "true", "Layer": 0,
         }
 
+    # Recursos
     if hasattr(agent, "resource_type"):
         color_map = {
             ResourceType.CRYSTAL: "dodgerblue",
             ResourceType.METAL: "silver",
             ResourceType.STRUCTURE: "black",
         }
+        label_map = {ResourceType.CRYSTAL: "C", ResourceType.METAL: "M", ResourceType.STRUCTURE: "S"}
         return {
-            "Shape": "circle",
-            "Color": color_map[agent.resource_type],
-            "Filled": "true",
-            "Layer": 0,
-            "r": 0.4,
+            "Shape": "circle", "Color": color_map[agent.resource_type], "Filled": "true", "Layer": 0,
+            "r": 0.4, "text": label_map[agent.resource_type], "text_color": "white",
         }
 
+    # Agentes
     class_color = {
-        "ReactiveAgent": "orange",
-        "StateBasedAgent": "mediumpurple",
-        "GoalBasedAgent": "limegreen",
-        "CooperativeAgent": "red",
-        "BDIAgent": "gold",
+        "ReactiveAgent": "orange", "StateBasedAgent": "mediumpurple", "GoalBasedAgent": "limegreen",
+        "CooperativeAgent": "red", "BDIAgent": "gold",
     }
     return {
-        "Shape": "rect",
-        "w": 0.8,
-        "h": 0.8,
-        "Color": class_color.get(agent.__class__.__name__, "gray"),
-        "Filled": "true",
-        "Layer": 1,
+        "Shape": "rect", "w": 0.8, "h": 0.8, "Color": class_color.get(agent.__class__.__name__, "gray"),
+        "Filled": "true", "Layer": 1, "text": str(agent.unique_id), "text_color": "black",
     }
 
+
+# ────────────────────────────────────────────────────────────────────────────────
+# Parâmetros & Servidor
+# ────────────────────────────────────────────────────────────────────────────────
 
 params = {
     "width": 20,
@@ -81,25 +129,27 @@ params = {
 }
 
 cell_px = 40
+
+# Grade
 grid = CanvasGrid(
     agent_portrayal,
-    params["width"],
-    params["height"],
-    cell_px * params["width"],
-    cell_px * params["height"],
+    params["width"], params["height"],
+    cell_px * params["width"], cell_px * params["height"],
 )
 
+# Para centralizar o canvas, basta incluir no HTML usado pelo Mesa-Server:
+# <style> canvas { display:block; margin:0 auto; } </style>
 
-chart = ChartModule(
-    [{"Label": "Utility", "Color": "black"}],
-    data_collector_name=None,
-)
+info = InfoPanel()
 
 server = ModularServer(
-    ResourceModel,
-    [grid],
-    "Resource‑Collector Agents",
+    InstrumentedModel,
+    [grid, info],
+    "Resource‑Collector Agents (v3)",
     params,
 )
+
 server.port = 8521
-server.launch()
+
+if __name__ == "__main__":
+    server.launch()
