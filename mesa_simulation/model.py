@@ -29,11 +29,8 @@ class ResourceAgent(Agent):
 
 
 class ResourceModel(Model):
-    """Grid, agenda e quadro global de recursos."""
-
     def __init__(self, width, height, agent_configs, resources, obstacles):
         super().__init__()
-        # --- infra ---------------------------------------------------------
         self.grid = MultiGrid(width, height, torus=False)
         self.schedule = RandomActivation(self)
         self.base_position = (0, 0)
@@ -42,32 +39,23 @@ class ResourceModel(Model):
         self.next_uid = 0
         self.max_steps = 100
         self.running = True
-
-        # total de recursos para o Base.deposit()
         self.total_resources = len(resources)
-
-        # quadro global de percepções
         self.known_resources: dict[tuple[int, int], ResourceType] = {}
-
-        # colocar ícone visual da base
         self.grid.place_agent(BaseAgent(self.next_uid, self), self.base_position)
         self.next_uid += 1
 
-        # --- agentes móveis ------------------------------------------------
         for cfg in agent_configs:
             pos = tuple(cfg["position"])
             agent = self._create_agent(cfg["type"])
             self.schedule.add(agent)
             self.grid.place_agent(agent, pos)
 
-        # log de entregas (painel da UI)
         self.agents_log = {
             a.unique_id: {rt: 0 for rt in ResourceType}
             for a in self.schedule.agents
             if hasattr(a, "delivered")
         }
 
-        # --- recursos estáticos -------------------------------------------
         for r in resources:
             pos = tuple(r["position"])
             self.grid.place_agent(
@@ -75,9 +63,6 @@ class ResourceModel(Model):
             )
             self.next_uid += 1
 
-        # (obstacles opcionais…)
-
-    # --------------------- utilidades compartilhadas ----------------------
     def safe_move(self, agent, pos):
         _safe_move(self.grid, agent, pos, set())
 
@@ -88,18 +73,16 @@ class ResourceModel(Model):
     def consume_resource_info(self, pos):
         self.known_resources.pop(pos, None)
 
-    # -------------------------- fábrica de agentes -----------------------
-
     def _create_agent(self, kind):
         if kind == "BDI":
             uid = self.next_uid
             self.next_uid += 1
-            self.message_bus.register("BDI")  # <-- registro
+            self.message_bus.register("BDI")
             return BDIAgent(uid, self, self.message_bus)
 
         uid = self.next_uid
         self.next_uid += 1
-        self.message_bus.register(str(uid))  # <-- registro
+        self.message_bus.register(str(uid))
 
         match kind:
             case "REACTIVE":
@@ -112,7 +95,6 @@ class ResourceModel(Model):
                 return CooperativeAgent(uid, self)
         raise ValueError(f"Tipo desconhecido: {kind}")
 
-    # -------------------------- loop de simulação ------------------------
     def step(self):
         print(f"\n─── PASSO {self.schedule.time:03} ───")
         if self.schedule.time >= self.max_steps:

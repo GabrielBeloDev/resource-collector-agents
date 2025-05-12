@@ -1,104 +1,197 @@
-from mesa import Agent, Model
-from mesa.space import MultiGrid
-from mesa.time import RandomActivation
+from mesa.visualization.ModularVisualization import ModularServer
+from mesa.visualization.modules import CanvasGrid, TextElement
+from mesa.datacollection import DataCollector
 
-from environment.base import Base
+from mesa_simulation.model import ResourceModel
 from environment.resource import ResourceType
-from environment.terrain import safe_move as _safe_move
-from communication.messaging import MessageBus
 
-from agents.reactive import ReactiveAgent
-from agents.state_based import StateBasedAgent
-from agents.goal_based import GoalBasedAgent
-from agents.cooperative import CooperativeAgent
-from agents.bdi import BDIAgent
+VALUE_MAP = {
+    ResourceType.CRYSTAL: 1,
+    ResourceType.METAL: 3,
+    ResourceType.STRUCTURE: 10,
+}
 
 
-class BaseAgent(Agent):
-    pass
+def _utility(model):
+    storage = getattr(model.base, "storage", {})
+    return sum(storage.get(rt, 0) * val for rt, val in VALUE_MAP.items())
 
 
-class ObstacleAgent(Agent):
-    pass
+def _count(resource):
+    return lambda m: getattr(m.base, "storage", {}).get(resource, 0)
 
 
-class ResourceAgent(Agent):
-    def __init__(self, uid, model, rtype: ResourceType):
-        super().__init__(uid, model)
-        self.resource_type = rtype
-
-
-class ResourceModel(Model):
-    def __init__(self, width, height, agent_configs, resources, obstacles):
-        super().__init__()
-        self.grid = MultiGrid(width, height, torus=False)
-        self.schedule = RandomActivation(self)
-        self.base_position = (0, 0)
-        self.base = Base(self, position=None)
-        self.message_bus = MessageBus()
-        self.next_uid = 0
-        self.max_steps = 100
-        self.running = True
-        self.total_resources = len(resources)
-        self.known_resources: dict[tuple[int, int], ResourceType] = {}
-        self.grid.place_agent(BaseAgent(self.next_uid, self), self.base_position)
-        self.next_uid += 1
-
-        for cfg in agent_configs:
-            pos = tuple(cfg["position"])
-            agent = self._create_agent(cfg["type"])
-            self.schedule.add(agent)
-            self.grid.place_agent(agent, pos)
-
-        self.agents_log = {
-            a.unique_id: {rt: 0 for rt in ResourceType}
-            for a in self.schedule.agents
-            if hasattr(a, "delivered")
-        }
-
-        for r in resources:
-            pos = tuple(r["position"])
-            self.grid.place_agent(
-                ResourceAgent(self.next_uid, self, ResourceType[r["type"]]), pos
-            )
-            self.next_uid += 1
-
-    def safe_move(self, agent, pos):
-        _safe_move(self.grid, agent, pos, set())
-
-    def report_resource(self, pos, rtype):
-        if pos not in self.known_resources:
-            self.known_resources[pos] = rtype
-
-    def consume_resource_info(self, pos):
-        self.known_resources.pop(pos, None)
-
-    def _create_agent(self, kind):
-        if kind == "BDI":
-            uid = self.next_uid
-            self.next_uid += 1
-            self.message_bus.register("BDI")
-            return BDIAgent(uid, self, self.message_bus)
-
-        uid = self.next_uid
-        self.next_uid += 1
-        self.message_bus.register(str(uid))
-
-        match kind:
-            case "REACTIVE":
-                return ReactiveAgent(uid, self)
-            case "STATE_BASED":
-                return StateBasedAgent(uid, self)
-            case "GOAL_BASED":
-                return GoalBasedAgent(uid, self)
-            case "COOPERATIVE":
-                return CooperativeAgent(uid, self)
-        raise ValueError(f"Tipo desconhecido: {kind}")
+class InstrumentedModel(ResourceModel):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.datacollector = DataCollector(
+            model_reporters={
+                "Utility": _utility,
+                "Cristais": _count(ResourceType.CRYSTAL),
+                "Metais": _count(ResourceType.METAL),
+                "Estruturas": _count(ResourceType.STRUCTURE),
+            }
+        )
 
     def step(self):
-        print(f"\n─── PASSO {self.schedule.time:03} ───")
-        if self.schedule.time >= self.max_steps:
-            print("Tempestade de radiação! Encerrando a coleta.")
-            self.running = False
-            return
-        self.schedule.step()
+        self.datacollector.collect(self)
+        super().step()
+
+
+class LegendPanel(TextElement):
+    def render(self, model):
+        return """
+        <div style="font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5;">
+            <b>📘 Legenda:</b><br><br>
+            <u>Recursos:</u><br>
+            <span style="color:dodgerblue;">●</span> CRYSTAL<br>
+            <span style="color:silver;">●</span> METAL<br>
+            <span style="color:black;">●</span> STRUCTURE<br><br>
+            <u>Agentes:</u><br>
+            <span style="color:gold;">■</span> BDI<br>
+            <span style="color:limegreen;">■</span> Goal‑Based<br>
+            <span style="color:mediumpurple;">■</span> State‑Based<br>
+            <span style="color:orange;">■</span> Reactive<br>
+            <span style="color:red;">■</span> Cooperative<br>
+        </div>
+        """
+
+
+class InfoPanel(TextElement):
+    def render(self, model):
+        return f"<b>Passo:</b> {model.schedule.steps}"
+
+
+class AgentStatsPanel(TextElement):
+    def render(self, model):
+        output = "<b>Coletas por Agente:</b><br><pre>"
+        total = {rt: 0 for rt in ResourceType}
+        total_score = 0
+        for agent in model.schedule.agents:
+            if not hasattr(agent, "delivered"):
+                continue
+            name = getattr(agent, "name", f"Agente {agent.unique_id}")
+            delivered = agent.delivered
+            score = sum(delivered[r] * VALUE_MAP[r] for r in ResourceType)
+            output += f"{name}: "
+            output += " | ".join(f"{r.name[0]}: {delivered[r]}" for r in ResourceType)
+            output += f" | Pontuação: {score}\n"
+            for r in ResourceType:
+                total[r] += delivered[r]
+            total_score += score
+        output += "\nTOTAL: " + " | ".join(
+            f"{r.name[0]}: {total[r]}" for r in ResourceType
+        )
+        output += f" | Pontuação Total: {total_score}</pre>"
+        return output
+
+
+def agent_portrayal(agent):
+    if agent.__class__.__name__ == "BaseAgent":
+        return {
+            "Shape": "rect",
+            "w": 1,
+            "h": 1,
+            "Color": "white",
+            "Filled": "true",
+            "Layer": 0,
+            "stroke_color": "black",
+        }
+    if agent.__class__.__name__ == "ObstacleAgent":
+        return {
+            "Shape": "rect",
+            "w": 1,
+            "h": 1,
+            "Color": "#555",
+            "Filled": "true",
+            "Layer": 0,
+        }
+    if hasattr(agent, "resource_type"):
+        color_map = {
+            ResourceType.CRYSTAL: "dodgerblue",
+            ResourceType.METAL: "silver",
+            ResourceType.STRUCTURE: "black",
+        }
+        label_map = {
+            ResourceType.CRYSTAL: "C",
+            ResourceType.METAL: "M",
+            ResourceType.STRUCTURE: "S",
+        }
+        return {
+            "Shape": "circle",
+            "Color": color_map[agent.resource_type],
+            "Filled": "true",
+            "Layer": 0,
+            "r": 0.4,
+            "text": label_map[agent.resource_type],
+            "text_color": "white",
+        }
+    class_color = {
+        "ReactiveAgent": "orange",
+        "StateBasedAgent": "mediumpurple",
+        "GoalBasedAgent": "limegreen",
+        "CooperativeAgent": "red",
+        "BDIAgent": "gold",
+    }
+    return {
+        "Shape": "rect",
+        "w": 0.8,
+        "h": 0.8,
+        "Color": class_color.get(agent.__class__.__name__, "gray"),
+        "Filled": "true",
+        "Layer": 1,
+        "text": str(agent.unique_id),
+        "text_color": "black",
+    }
+
+
+params = {
+    "width": 20,
+    "height": 13,
+    "agent_configs": [
+        {"type": "BDI", "position": [0, 0]},
+        {"type": "GOAL_BASED", "position": [0, 0]},
+        {"type": "REACTIVE", "position": [0, 0]},
+        {"type": "STATE_BASED", "position": [0, 0]},
+        {"type": "COOPERATIVE", "position": [0, 0]},
+    ],
+    "resources": [
+        {"type": "CRYSTAL", "position": [2, 3]},
+        {"type": "CRYSTAL", "position": [8, 10]},
+        {"type": "CRYSTAL", "position": [5, 5]},
+        {"type": "CRYSTAL", "position": [10, 6]},
+        {"type": "CRYSTAL", "position": [3, 12]},
+        {"type": "CRYSTAL", "position": [17, 4]},
+        {"type": "METAL", "position": [4, 8]},
+        {"type": "METAL", "position": [12, 2]},
+        {"type": "STRUCTURE", "position": [1, 1]},
+        {"type": "CRYSTAL", "position": [2, 1]},
+        {"type": "CRYSTAL", "position": [4, 3]},
+        {"type": "CRYSTAL", "position": [2, 2]},
+    ],
+    "obstacles": [],
+}
+
+cell_px = 40
+grid = CanvasGrid(
+    agent_portrayal,
+    params["width"],
+    params["height"],
+    cell_px * params["width"],
+    cell_px * params["height"],
+)
+
+info = InfoPanel()
+legend = LegendPanel()
+stats = AgentStatsPanel()
+
+server = ModularServer(
+    InstrumentedModel,
+    [grid, info, legend, stats],
+    "Resource‑Collector Agents (v3)",
+    params,
+)
+server.port = 8521
+
+if __name__ == "__main__":
+    server.launch()
