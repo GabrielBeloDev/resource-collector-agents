@@ -6,9 +6,9 @@ from mesa_simulation.model import ResourceModel
 from environment.resource import ResourceType
 
 VALUE_MAP = {
-    ResourceType.CRYSTAL: 1,
-    ResourceType.METAL: 3,
-    ResourceType.STRUCTURE: 10,
+    ResourceType.CRYSTAL: 10,
+    ResourceType.METAL: 20,
+    ResourceType.STRUCTURE: 50,
 }
 
 
@@ -64,13 +64,15 @@ class InfoPanel(TextElement):
 
 class AgentStatsPanel(TextElement):
     def render(self, model):
+        print(model.schedule.agents)
         output = "<b>Coletas por Agente:</b><br><pre>"
         total = {rt: 0 for rt in ResourceType}
         total_score = 0
         for agent in model.schedule.agents:
             if not hasattr(agent, "delivered"):
+                print("aqui")
                 continue
-            name = getattr(agent, "name", f"Agente {agent.unique_id}")
+            name = getattr(agent, "name", f"Agente {agent.unique_id}{agent}")
             delivered = agent.delivered
             score = sum(delivered[r] * VALUE_MAP[r] for r in ResourceType)
             output += f"{name}: "
@@ -168,6 +170,9 @@ params = {
         {"type": "CRYSTAL", "position": [2, 1]},
         {"type": "CRYSTAL", "position": [4, 3]},
         {"type": "CRYSTAL", "position": [2, 2]},
+        {"type": "METAL", "position": [11, 4]},
+        {"type": "STRUCTURE", "position": [5, 1]},
+        {"type": "CRYSTAL", "position": [10, 1]},
     ],
     "obstacles": [],
 }

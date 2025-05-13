@@ -133,20 +133,33 @@ class StateBasedAgent(Agent):
                 r_type = obj.resource_type
                 self._send_belief(pos, r_type)
                 if pos == self.pos:
+                    # coleta simples de pequenos
                     if r_type in (ResourceType.CRYSTAL, ResourceType.METAL):
                         self.model.grid.remove_agent(obj)
                         self.carrying = r_type
                         log(self, f"coletou {r_type.name} em {pos}")
                         self.current_task = None
                         return
-                    if (
-                        r_type == ResourceType.STRUCTURE
-                        and self.current_task
-                        and tuple(self.current_task["position"]) == pos
-                    ):
-                        self.waiting_for_help = True
-                        log(self, f"esperando parceiro em {pos} p/ STRUCTURE")
+
+                    # estrutura: tenta parceria, mas se não houver, coleta solo
+                    if r_type == ResourceType.STRUCTURE:
+                        cellmates = self.model.grid.get_cell_list_contents([pos])
+                        partners = [
+                            a for a in cellmates
+                            if isinstance(a, StateBasedAgent)
+                            and a.unique_id != self.unique_id
+                            and a.waiting_for_help
+                        ]
+                        # se encontrou parceiro, mantém coleta cooperativa
+                        if partners:
+                            self._check_for_partner()
+                        else:
+                            # coleta solo
+                            self.model.grid.remove_agent(obj)
+                            self.carrying = ResourceType.STRUCTURE
+                            log(self, f"coletou STRUCTURE solo em {pos}")
                         return
+
                 else:
                     if (
                         r_type in (ResourceType.CRYSTAL, ResourceType.METAL)

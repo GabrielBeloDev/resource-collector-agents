@@ -21,6 +21,7 @@ class BDIAgent(Agent):
         self.bus = bus
         self.beliefs: dict[tuple[int, int], ResourceType] = {}
         self.dispatched: set[tuple[int, int]] = set()
+        self.delivered = {rt: 0 for rt in ResourceType}
 
     def step(self):
         self._update_beliefs()

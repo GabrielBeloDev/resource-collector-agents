@@ -30,6 +30,7 @@ class CooperativeAgent(Agent):
                 self.carrying = None
             return
 
+        
         if self.waiting_for_help:
             self.check_for_partner()
             return
