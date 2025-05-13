@@ -14,6 +14,7 @@ class ReactiveAgent(Agent):
         self.delivered = {rt: 0 for rt in ResourceType}
 
     def step(self):
+        # Lógica principal: entregar se estiver carregando, caso contrário coletar ou andar
         if self.carrying:
             self._to_base()
             if self.pos == self.model.base_position:
@@ -27,6 +28,7 @@ class ReactiveAgent(Agent):
         self._walk()
 
     def _collect(self):
+        # Tenta coletar cristal ou metal na célula atual
         for obj in self.model.grid.get_cell_list_contents([self.pos]):
             if hasattr(obj, "resource_type"):
                 r = obj.resource_type

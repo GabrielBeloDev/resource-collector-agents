@@ -37,7 +37,7 @@ class ResourceModel(Model):
         self.base = Base(self, position=None)
         self.message_bus = MessageBus()
         self.next_uid = 0
-        self.max_steps = 1500
+        self.max_steps = 400
         self.running = True
         self.total_resources = len(resources)
         self.known_resources: dict[tuple[int, int], ResourceType] = {}

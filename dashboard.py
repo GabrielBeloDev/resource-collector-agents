@@ -1,5 +1,3 @@
-# dashboard.py  —  versão 4 (recursos visíveis + gráfico dinâmico)
-# -----------------------------------------------------------------
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,7 +7,6 @@ import matplotlib.colors as mcolors
 from mesa_simulation.model import ResourceModel
 from environment.resource import ResourceType
 
-# ----------------- CONFIG GERAL ----------------------------------
 VALUE_MAP = {
     ResourceType.CRYSTAL: 10,
     ResourceType.METAL: 20,
@@ -59,9 +56,7 @@ LABEL_RESOURCE = {
 }
 
 
-# ----------------- FUNÇÕES AUXILIARES -----------------------------
 def make_model():
-    """Cria InstrumentedModel com coleta t=0."""
     from mesa.datacollection import DataCollector
 
     def _utility(m):
@@ -82,23 +77,19 @@ def make_model():
                     "Estruturas": _count(ResourceType.STRUCTURE),
                 }
             )
-            self.datacollector.collect(self)  # passo 0
+            self.datacollector.collect(self)  
 
         def step(self):
-            super().step()  # agentes agem primeiro
-            self.datacollector.collect(self)  # coleta após ação
+            super().step()  
+            self.datacollector.collect(self)  
 
     return InstrumentedModel(**PARAMS)
 
 
 def grid_image(model):
-    """Desenha o grid garantindo que CRYSTAL / METAL / STRUCTURE apareçam."""
     w, h = PARAMS["width"], PARAMS["height"]
     canvas = np.ones((h, w, 3))
 
-    # ------------------------------------------------------------------
-    # 1) Recursos vindos de model.known_resources   { (x,y): ResourceType }
-    # ------------------------------------------------------------------
     annotations = []
     if hasattr(model, "known_resources"):
         for (x, y), rtype in model.known_resources.items():
@@ -106,9 +97,6 @@ def grid_image(model):
             canvas[y, x] = mcolors.to_rgb(color)
             annotations.append((x, y, LABEL_RESOURCE.get(rtype, "?")))
 
-    # ------------------------------------------------------------------
-    # 2) Recursos que são agentes com .resource_type (caso use ResourceAgent)
-    # ------------------------------------------------------------------
     for ag in model.schedule.agents:
         if hasattr(ag, "resource_type"):
             x, y = ag.pos
@@ -116,9 +104,6 @@ def grid_image(model):
             canvas[y, x] = mcolors.to_rgb(color)
             annotations.append((x, y, LABEL_RESOURCE.get(ag.resource_type, "?")))
 
-    # ------------------------------------------------------------------
-    # 3) Obstáculos
-    # ------------------------------------------------------------------
     for x, y in getattr(model, "obstacles", []):
         canvas[y, x] = 0.3
     for ag in model.schedule.agents:
@@ -126,9 +111,6 @@ def grid_image(model):
             x, y = ag.pos
             canvas[y, x] = 0.3
 
-    # ------------------------------------------------------------------
-    # 4) Agentes coletores por cima
-    # ------------------------------------------------------------------
     for ag in model.schedule.agents:
         if hasattr(ag, "resource_type") or ag.__class__.__name__ == "ObstacleAgent":
             continue
@@ -137,17 +119,12 @@ def grid_image(model):
         rgb = mcolors.to_rgb(COLOR_AGENT.get(ag.__class__.__name__, "gray"))
         canvas[y, x] = rgb
 
-        # --- se o agente estiver carregando, coloca um círculo/brilho/label
         if getattr(ag, "carrying", None):
             carry = ag.carrying
             lbl = LABEL_RESOURCE.get(carry, "?")
-            # contorno amarelo pra destacar
             canvas[y, x] = mcolors.to_rgb("yellow")
-            annotations.append((x, y, lbl))  # letra por cima
+            annotations.append((x, y, lbl))  
 
-    # ------------------------------------------------------------------
-    # 5) Plota
-    # ------------------------------------------------------------------
     fig, ax = plt.subplots()
     ax.imshow(canvas, origin="lower")
     ax.set_xticks([])
@@ -175,7 +152,6 @@ def agent_stats_df(model):
     return pd.DataFrame(rows).sort_values("Pontuação", ascending=False)
 
 
-# ----------------- STREAMLIT UI -----------------------------------
 st.set_page_config(layout="wide", page_title="Resource‑Collector Agents")
 
 if "model" not in st.session_state:
@@ -197,7 +173,6 @@ with col1:
 
     st.markdown(f"**Passo atual:** {st.session_state.model.schedule.steps}")
 
-    # legenda
     st.markdown("---")
     st.markdown("#### 📘 Legenda")
     st.markdown(
@@ -218,18 +193,15 @@ with col1:
     )
 
 with col2:
-    # --- GRID --------------------------------------------------------
     st.markdown("### 🗺️ Grid de Recursos e Agentes")
     st.pyplot(grid_image(st.session_state.model), clear_figure=True)
 
-    # --- GRÁFICOS ----------------------------------------------------
     st.markdown("### 📊 Métricas de desempenho")
     df_model = st.session_state.model.datacollector.get_model_vars_dataframe()
 
-    # adiciona coluna “Restantes” — recursos ainda no mapa
     if hasattr(st.session_state.model, "known_resources"):
         df_model["Restantes"] = [
-            len(st.session_state.model.known_resources)  # valor atual é suficiente
+            len(st.session_state.model.known_resources)  
             for _ in range(len(df_model))
         ]
 
@@ -242,7 +214,6 @@ with col2:
     else:
         st.info("Rode alguns passos para ver o gráfico 😉")
 
-    # --- TABELA DE PONTUAÇÃO ----------------------------------------
     st.markdown("### 🏅 Coletas por agente")
     st.dataframe(
         agent_stats_df(st.session_state.model),

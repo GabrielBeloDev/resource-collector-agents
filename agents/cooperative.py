@@ -17,6 +17,7 @@ class CooperativeAgent(Agent):
         self.delivered = {rt: 0 for rt in ResourceType}
 
     def step(self):
+        """Decide ação principal: entregar, ajudar ou explorar/andar."""
         if self.carrying:
             self._move(self.model.base_position)
             if self.pos == self.model.base_position:
@@ -51,6 +52,7 @@ class CooperativeAgent(Agent):
                     self.structures.add((x, y))
 
     def _best(self):
+        """Calcula posição de máxima utilidade para cooperar."""
         best, u = None, -1
         for p in self.structures:
             d = abs(self.pos[0] - p[0]) + abs(self.pos[1] - p[1])
@@ -65,6 +67,7 @@ class CooperativeAgent(Agent):
         return best
 
     def _check(self):
+        """Tenta coletar em parceria ou sinaliza espera."""
         cell = self.model.grid.get_cell_list_contents([self.pos])
         for obj in cell:
             if getattr(obj, "resource_type", None) == ResourceType.STRUCTURE:

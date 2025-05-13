@@ -5,6 +5,7 @@ from mesa.datacollection import DataCollector
 from mesa_simulation.model import ResourceModel
 from environment.resource import ResourceType
 
+
 VALUE_MAP = {
     ResourceType.CRYSTAL: 10,
     ResourceType.METAL: 20,
@@ -13,6 +14,7 @@ VALUE_MAP = {
 
 
 def _utility(model):
+    # soma (quantidade × valor)
     storage = getattr(model.base, "storage", {})
     return sum(storage.get(rt, 0) * val for rt, val in VALUE_MAP.items())
 
@@ -77,22 +79,24 @@ class AgentStatsPanel(TextElement):
         output = "<b>Coletas por Agente:</b><br><pre>"
         total = {rt: 0 for rt in ResourceType}
         total_score = 0
+
         for agent in model.schedule.agents:
             if not hasattr(agent, "delivered"):
-                print("aqui")
-                continue
-            name = getattr(agent, "name", f"Agente {agent.unique_id}{agent}")
+                continue  
+
+
             delivered = agent.delivered
             score = sum(delivered[r] * VALUE_MAP[r] for r in ResourceType)
-            output += f"{name}: "
+            output += f"Agente {agent.unique_id}: "
             output += " | ".join(f"{r.name[0]}: {delivered[r]}" for r in ResourceType)
             output += f" | Pontuação: {score}\n"
+
+
             for r in ResourceType:
                 total[r] += delivered[r]
             total_score += score
-        output += "\nTOTAL: " + " | ".join(
-            f"{r.name[0]}: {total[r]}" for r in ResourceType
-        )
+
+        output += "\nTOTAL: " + " | ".join(f"{r.name[0]}: {total[r]}" for r in ResourceType)
         output += f" | Pontuação Total: {total_score}</pre>"
         return output
 
@@ -100,43 +104,24 @@ class AgentStatsPanel(TextElement):
 def agent_portrayal(agent):
     if agent.__class__.__name__ == "BaseAgent":
         return {
-            "Shape": "rect",
-            "w": 1,
-            "h": 1,
-            "Color": "white",
-            "Filled": "true",
-            "Layer": 0,
-            "stroke_color": "black",
+            "Shape": "rect", "w": 1, "h": 1,
+            "Color": "white", "Filled": "true",
+            "Layer": 0, "stroke_color": "black",
         }
-    if agent.__class__.__name__ == "ObstacleAgent":
-        return {
-            "Shape": "rect",
-            "w": 1,
-            "h": 1,
-            "Color": "#555",
-            "Filled": "true",
-            "Layer": 0,
-        }
+
     if hasattr(agent, "resource_type"):
         color_map = {
             ResourceType.CRYSTAL: "dodgerblue",
             ResourceType.METAL: "silver",
             ResourceType.STRUCTURE: "black",
         }
-        label_map = {
-            ResourceType.CRYSTAL: "C",
-            ResourceType.METAL: "M",
-            ResourceType.STRUCTURE: "S",
-        }
+        label_map = {ResourceType.CRYSTAL: "C", ResourceType.METAL: "M", ResourceType.STRUCTURE: "S"}
         return {
-            "Shape": "circle",
-            "Color": color_map[agent.resource_type],
-            "Filled": "true",
-            "Layer": 0,
-            "r": 0.4,
-            "text": label_map[agent.resource_type],
-            "text_color": "white",
+            "Shape": "circle", "r": 0.4,
+            "Color": color_map[agent.resource_type], "Filled": "true", "Layer": 0,
+            "text": label_map[agent.resource_type], "text_color": "white",
         }
+
     class_color = {
         "ReactiveAgent": "orange",
         "StateBasedAgent": "mediumpurple",
@@ -145,9 +130,7 @@ def agent_portrayal(agent):
         "BDIAgent": "gold",
     }
     return {
-        "Shape": "rect",
-        "w": 0.8,
-        "h": 0.8,
+        "Shape": "rect", "w": 0.8, "h": 0.8,
         "Color": class_color.get(agent.__class__.__name__, "gray"),
         "Filled": "true",
         "Layer": 1,
@@ -156,6 +139,7 @@ def agent_portrayal(agent):
     }
 
 
+# parâmetros iniciais da simulação
 params = {
     "width": 20,
     "height": 13,
@@ -183,26 +167,23 @@ params = {
         {"type": "STRUCTURE", "position": [5, 1]},
         {"type": "CRYSTAL", "position": [10, 1]},
     ],
-    "obstacles": [],
+    "obstacles": [],  
 }
 
+# cria o grid de visualização
 cell_px = 40
-grid = CanvasGrid(
-    agent_portrayal,
-    params["width"],
-    params["height"],
-    cell_px * params["width"],
-    cell_px * params["height"],
-)
+grid = CanvasGrid(agent_portrayal, params["width"], params["height"],
+                  cell_px * params["width"], cell_px * params["height"])
 
 info = InfoPanel()
 legend = LegendPanel()
 stats = AgentStatsPanel()
 
+# configura servidor Mesa com todos os módulos
 server = ModularServer(
     InstrumentedModel,
     [grid, info, legend, stats],
-    "Resource‑Collector Agents (v3)",
+    "Resource-Collector Agents (v3)",
     params,
 )
 server.port = 8521
