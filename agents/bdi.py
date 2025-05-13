@@ -5,7 +5,13 @@ from environment.resource import ResourceType
 VALUE = {ResourceType.CRYSTAL: 10, ResourceType.METAL: 20, ResourceType.STRUCTURE: 50}
 
 
+# agents/bdi.py
+DEBUG_BDI = True
+
+
 def log(a, msg):
+    if not DEBUG_BDI:
+        return  # silencia tudo
     step = a.model.schedule.time
     print(f"[BDI {a.unique_id:02} | t={step:03}] {msg}")
 

@@ -73,27 +73,46 @@ class ResourceModel(Model):
     def consume_resource_info(self, pos):
         self.known_resources.pop(pos, None)
 
-    def _create_agent(self, kind):
-        if kind == "BDI":
-            uid = self.next_uid
-            self.next_uid += 1
-            self.message_bus.register("BDI")
-            return BDIAgent(uid, self, self.message_bus)
-
+    def _create_agent(self, kind: str):
+        """
+        Cria o agente do tipo solicitado, atribui‑lhe um nome legível
+        (para aparecer no grid/legenda) e já faz o registro no MessageBus.
+        """
+        # gera o UID
         uid = self.next_uid
         self.next_uid += 1
+
+        # mapeia o rótulo curto que queremos exibir
+        pretty = {
+            "BDI": "BDI",
+            "GOAL_BASED": "Goal",
+            "STATE_BASED": "State",
+            "REACTIVE": "Reac",
+            "COOPERATIVE": "Coop",
+        }.get(kind, kind)
+
+        # cada agente publica em seu próprio canal (até o BDI, se quiser)
         self.message_bus.register(str(uid))
 
+        # cria o agente propriamente dito
         match kind:
-            case "REACTIVE":
-                return ReactiveAgent(uid, self)
-            case "STATE_BASED":
-                return StateBasedAgent(uid, self)
+            case "BDI":
+                agent = BDIAgent(uid, self, self.message_bus)
             case "GOAL_BASED":
-                return GoalBasedAgent(uid, self)
+                agent = GoalBasedAgent(uid, self)
+            case "STATE_BASED":
+                agent = StateBasedAgent(uid, self)
+            case "REACTIVE":
+                agent = ReactiveAgent(uid, self)
             case "COOPERATIVE":
-                return CooperativeAgent(uid, self)
-        raise ValueError(f"Tipo desconhecido: {kind}")
+                agent = CooperativeAgent(uid, self)
+            case _:
+                raise ValueError(f"Tipo desconhecido: {kind}")
+
+        # adiciona o nome para uso nos painéis / grid
+        agent.name = f"{pretty}-{uid:02}"
+
+        return agent
 
     def step(self):
         print(f"\n─── PASSO {self.schedule.time:03} ───")

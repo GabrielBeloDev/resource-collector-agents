@@ -40,21 +40,30 @@ class InstrumentedModel(ResourceModel):
 
 class LegendPanel(TextElement):
     def render(self, model):
-        return """
-        <div style="font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5;">
-            <b>📘 Legenda:</b><br><br>
-            <u>Recursos:</u><br>
-            <span style="color:dodgerblue;">●</span> CRYSTAL<br>
-            <span style="color:silver;">●</span> METAL<br>
-            <span style="color:black;">●</span> STRUCTURE<br><br>
-            <u>Agentes:</u><br>
-            <span style="color:gold;">■</span> BDI<br>
-            <span style="color:limegreen;">■</span> Goal‑Based<br>
-            <span style="color:mediumpurple;">■</span> State‑Based<br>
-            <span style="color:orange;">■</span> Reactive<br>
-            <span style="color:red;">■</span> Cooperative<br>
-        </div>
-        """
+        lines = ["<b>📘 Legenda</b><br><br><u>Agentes:</u><br>"]
+        # elimina duplicados preservando ordem
+        seen = set()
+        for ag in model.schedule.agents:
+            t = type(ag).__name__
+            if t in seen:
+                continue
+            seen.add(t)
+            color = {
+                "BDIAgent": "gold",
+                "GoalBasedAgent": "limegreen",
+                "StateBasedAgent": "mediumpurple",
+                "ReactiveAgent": "orange",
+                "CooperativeAgent": "red",
+            }[t]
+            sample_name = getattr(ag, "name", t)
+            lines.append(
+                f'<span style="color:{color};">■</span> {sample_name.split("-")[0]}'
+            )
+        lines.append("<br><u>Recursos:</u>")
+        lines.append('<span style="color:dodgerblue;">●</span> CRYSTAL')
+        lines.append('<span style="color:silver;">●</span> METAL')
+        lines.append('<span style="color:black;">●</span> STRUCTURE')
+        return "<br>".join(lines)
 
 
 class InfoPanel(TextElement):
@@ -64,7 +73,7 @@ class InfoPanel(TextElement):
 
 class AgentStatsPanel(TextElement):
     def render(self, model):
-        print(model.schedule.agents)
+        # print(model.schedule.agents)
         output = "<b>Coletas por Agente:</b><br><pre>"
         total = {rt: 0 for rt in ResourceType}
         total_score = 0
@@ -142,7 +151,7 @@ def agent_portrayal(agent):
         "Color": class_color.get(agent.__class__.__name__, "gray"),
         "Filled": "true",
         "Layer": 1,
-        "text": str(agent.unique_id),
+        "text": getattr(agent, "name", str(agent.unique_id)),
         "text_color": "black",
     }
 

@@ -42,7 +42,7 @@ class GoalBasedAgent(Agent):
         if self.path:
             nxt = self.path.pop(0)
             self.model.safe_move(self, nxt)
-            log(self, f"🚶 moveu‑se para {nxt} • restantes={len(self.path)}")
+            log(self, f"🚶 moveu‑se para {nxt}")
 
     def _receive_tasks(self):
         for chan in (str(self.unique_id), "broadcast_GOAL"):
