@@ -2,148 +2,212 @@ from random import choice
 from mesa import Agent
 from environment.resource import ResourceType
 
-def log(agent, msg: str):
-    print(f"[StateBased {agent.unique_id}] {msg}")
+
+def log(a, m):
+    print(f"[StateBased {a.unique_id:02}] {m}")
+
 
 class StateBasedAgent(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
+    """
+    • Explora evitando revisitas frequentes.
+    • Coopera 2‑a‑2 (ou sozinho) para STRUCTURE.
+    • Aceita tasks individuais do BDI.
+    """
+
+    def __init__(self, uid, model):
+        super().__init__(uid, model)
         self.memory: set[tuple[int, int]] = set()
+        self.visit: dict[tuple[int, int], int] = {}
         self.carrying: ResourceType | None = None
-        self.waiting_for_help = False
-        self.current_task = None
+        self.waiting_for_help: bool = False
+        self.current_task: dict | None = None
         self.delivered = {rt: 0 for rt in ResourceType}
 
-    def step(self):
-        # grava posição e processa possíveis tarefas
+    # ------------------------------------------------------------ #
+    # 1 passo                                                      #
+    # ------------------------------------------------------------ #
+    def step(self) -> None:
+        # memoriza posição
         self.memory.add(self.pos)
-        self._receive_messages()
+        self.visit[self.pos] = self.visit.get(self.pos, 0) + 1
 
-        # se carregando, volta e entrega
+        self._receive()  # mensagens do BDI
+
+        # ---------- carregando algo ------------------------------- #
         if self.carrying:
-            self._move_towards(self.model.base_position)
+            self._move(self.model.base_position)
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying, self.unique_id)
                 self.delivered[self.carrying] += 1
-                log(self, f"entregou {self.carrying.name} na base")
+                log(self, f"🚚 entregou {self.carrying.name} | total={self.delivered}")
                 self.carrying = None
                 self.current_task = None
             return
 
-        # se aguardando parceiro, tenta cooperar ou cancela
+        # ---------- aguardando parceiro --------------------------- #
         if self.waiting_for_help:
-            self._check_for_partner()
+            self._check()
             return
 
-        # executa tarefa caso tenha
+        # ---------- task ativa ------------------------------------ #
         if self.current_task:
-            target = self.current_task["position"]
-            self.memory.add(target)
-            self._move_towards(target)
-            if self.pos == target:
-                self._look_and_collect()
+            tgt = self.current_task["position"]
+            self.memory.add(tgt)
+            self._move_towards(tgt)
+
+            #  chegou ao destino → tenta coletar
+            if self.pos == tgt:
+                before = self.carrying
+                self._look()  # varre e coleta
+                if self.carrying is None and not self.waiting_for_help:
+                    log(self, f"⚠️ tarefa inválida em {tgt}")
+                    self.current_task = None
             return
 
-        # senão, comportamento padrão
-        self._look_and_collect()
+        # ---------- comportamento padrão -------------------------- #
+        self._look()
         self._explore()
 
-    def _receive_messages(self):
-        # não recebe se ocupado
+    # ------------------------------------------------------------ #
+    # comunicação                                                  #
+    # ------------------------------------------------------------ #
+    def _receive(self) -> None:
+        """Recebe tasks quando não está ocupado."""
         if self.carrying or self.waiting_for_help:
             return
         if self.current_task and self.pos != tuple(self.current_task["position"]):
             return
 
         for msg in self.model.message_bus.receive(str(self.unique_id)):
-            if msg["type"] == "task" and msg["action"] == "collect":
+            if msg.get("type") == "task" and msg.get("action") == "collect":
                 self.current_task = {
                     "position": tuple(msg["position"]),
                     "resource_type": msg["resource_type"],
                 }
-                log(self, f"📥 nova task {msg['resource_type']} em {msg['position']}")
+                log(self, f"📥 task {msg['resource_type']} em {msg['position']}")
 
-    def _send_belief(self, pos, r_type):
-        self.model.report_resource(pos, r_type)
+    # ------------------------------------------------------------ #
+    # crenças                                                      #
+    # ------------------------------------------------------------ #
+    def _belief(self, p, r) -> None:
+        self.model.report_resource(p, r)
         self.model.message_bus.send(
             "BDI",
-            {"type": "belief", "data": {"position": pos, "resource_type": r_type.name}},
+            {"type": "belief", "data": {"position": p, "resource_type": r.name}},
         )
 
-    def _check_for_partner(self):
-        cellmates = self.model.grid.get_cell_list_contents([self.pos])
-        # se a structure sumiu, cancela a espera
-        if not any(o for o in cellmates if hasattr(o, "resource_type") and o.resource_type == ResourceType.STRUCTURE):
+    # ------------------------------------------------------------ #
+    # cooperação                                                   #
+    # ------------------------------------------------------------ #
+    def _check(self) -> None:
+        """Verifica se há parceiro; coleta STRUCTURE sozinho ou em dupla."""
+        cell = self.model.grid.get_cell_list_contents([self.pos])
+
+        # estrutura desapareceu?
+        if not any(
+            getattr(o, "resource_type", None) == ResourceType.STRUCTURE for o in cell
+        ):
             self.waiting_for_help = False
-            log(self, "STRUCTURE sumiu, cancelou espera")
+            log(self, "⚠️ STRUCTURE sumiu")
             return
 
-        # verifica se tem parceiro esperando aqui
         partners = [
-            a for a in cellmates
-            if isinstance(a, StateBasedAgent) and a.unique_id != self.unique_id and a.waiting_for_help
+            a
+            for a in cell
+            if isinstance(a, StateBasedAgent)
+            and a.waiting_for_help
+            and a.unique_id != self.unique_id
         ]
+
+        # remove o recurso
+        for obj in cell:
+            if getattr(obj, "resource_type", None) == ResourceType.STRUCTURE:
+                self.model.grid.remove_agent(obj)
+                break
+
+        self.carrying = ResourceType.STRUCTURE
+        self.waiting_for_help = False
+        for p in partners:
+            p.carrying = ResourceType.STRUCTURE
+            p.waiting_for_help = False
+
         if partners:
-            # coleta em dupla
-            for obj in cellmates:
-                if hasattr(obj, "resource_type") and obj.resource_type == ResourceType.STRUCTURE:
-                    self.model.grid.remove_agent(obj)
-                    break
-            self.carrying = ResourceType.STRUCTURE
-            self.waiting_for_help = False
-            # acorda o parceiro
-            for p in partners:
-                p.carrying = ResourceType.STRUCTURE
-                p.waiting_for_help = False
-            log(self, f"coletou STRUCTURE com {[p.unique_id for p in partners]}")
+            log(self, f"🤝 coletou STRUCTURE com {[p.unique_id for p in partners]}")
         else:
-            # sem parceiro, cancela a espera e coleta solo
-            self.waiting_for_help = False
-            log(self, "nenhum parceiro — coleta solo")
-            # a coleta solo já ocorreu no _look_and_collect, aqui só limpamos o estado
+            log(self, "🏗 coletou STRUCTURE sozinho")
 
-    def _explore(self):
-        neighbors = self.model.grid.get_neighborhood(self.pos, moore=False, include_center=False)
-        unexplored = [p for p in neighbors if p not in self.memory]
-        new_pos = choice(unexplored or neighbors)
-        self.model.safe_move(self, new_pos)
-        log(self, f"moveu-se p/ {new_pos}")
+    # ------------------------------------------------------------ #
+    # exploração                                                   #
+    # ------------------------------------------------------------ #
+    def _explore(self) -> None:
+        nbrs = self.model.grid.get_neighborhood(
+            self.pos, moore=False, include_center=False
+        )
+        unseen = [p for p in nbrs if p not in self.memory]
+        if unseen:
+            tgt = choice(unseen)
+        else:
+            m = min(self.visit.get(p, 0) for p in nbrs)
+            tgt = choice([p for p in nbrs if self.visit.get(p, 0) == m])
 
-    def _move_towards(self, dest):
+        self.model.safe_move(self, tgt)
+        log(self, f"🧭 explorou → {tgt} • visitas={self.visit.get(tgt,0)}")
+
+    # ------------------------------------------------------------ #
+    # navegação                                                    #
+    # ------------------------------------------------------------ #
+    def _move_towards(self, dest: tuple[int, int]) -> None:
         x, y = self.pos
         dx, dy = dest
-        if x < dx: x += 1
-        elif x > dx: x -= 1
-        elif y < dy: y += 1
-        elif y > dy: y -= 1
+        if x < dx:
+            x += 1
+        elif x > dx:
+            x -= 1
+        elif y < dy:
+            y += 1
+        elif y > dy:
+            y -= 1
         self.model.safe_move(self, (x, y))
+        log(self, f"➡️ passo → {(x, y)} (dest={dest})")
 
-    def _look_and_collect(self):
-        neighborhood = self.model.grid.get_neighborhood(self.pos, moore=False, include_center=True)
-        for pos in neighborhood:
-            for obj in self.model.grid.get_cell_list_contents([pos]):
+    # Alias para manter compatibilidade com a chamada existente
+    _move = _move_towards
+
+    # ------------------------------------------------------------ #
+    # percepção / coleta                                           #
+    # ------------------------------------------------------------ #
+    def _look(self) -> None:
+        """Analisa célula atual + vizinhos; coleta ou define novas metas."""
+        nb = self.model.grid.get_neighborhood(
+            self.pos, moore=False, include_center=True
+        )
+        for p in nb:
+            for obj in self.model.grid.get_cell_list_contents([p]):
                 if not hasattr(obj, "resource_type"):
                     continue
-                r_type = obj.resource_type
-                self._send_belief(pos, r_type)
+                rt = obj.resource_type
+                self._belief(p, rt)
 
-                if pos == self.pos:
-                    # coleta simples de cristal/metal
-                    if r_type in (ResourceType.CRYSTAL, ResourceType.METAL):
+                # --- célula onde estou -----------------------------
+                if p == self.pos:
+                    if rt in (ResourceType.CRYSTAL, ResourceType.METAL):
                         self.model.grid.remove_agent(obj)
-                        self.carrying = r_type
-                        log(self, f"coletou {r_type.name} em {pos}")
+                        self.carrying = rt
+                        log(self, f"💎 pegou {rt.name}")
                         self.current_task = None
                         return
-
-                    # STRUCTURE: marca espera e sai do loop
-                    if r_type == ResourceType.STRUCTURE:
+                    if rt == ResourceType.STRUCTURE:
                         self.waiting_for_help = True
-                        log(self, f"esperando ajuda em {pos}")
+                        log(self, "🏗 chegou na STRUCTURE • WAIT")
                         return
 
+                # --- célula vizinha --------------------------------
                 else:
-                    # vê cristal/metal à distância e agenda coleta
-                    if r_type in (ResourceType.CRYSTAL, ResourceType.METAL) and self.carrying is None and self.current_task is None:
-                        self.current_task = {"position": pos, "resource_type": r_type.name}
+                    if (
+                        rt in (ResourceType.CRYSTAL, ResourceType.METAL)
+                        and self.carrying is None
+                        and self.current_task is None
+                    ):
+                        self.current_task = {"position": p, "resource_type": rt.name}
+                        log(self, f"🎯 alvo em {p}")
                         return

@@ -1,64 +1,81 @@
 from math import dist
-from random import choice
 from mesa import Agent
 from environment.resource import ResourceType
 
-
-VALUE = {
-    ResourceType.CRYSTAL: 10,
-    ResourceType.METAL: 20,
-    ResourceType.STRUCTURE: 50,
-}
+VALUE = {ResourceType.CRYSTAL: 10, ResourceType.METAL: 20, ResourceType.STRUCTURE: 50}
 
 
-def log(agent, msg):
-    print(f"[BDI {agent.unique_id}] {msg}")
+def log(a, msg):
+    step = a.model.schedule.time
+    print(f"[BDI {a.unique_id:02} | t={step:03}] {msg}")
 
 
 class BDIAgent(Agent):
+    """
+    • Mantém crenças de posição → tipo do recurso.
+    • Só delega uma STRUCTURE por vez *por time*.
+    """
+
     def __init__(self, uid, model, bus):
         super().__init__(uid, model)
         self.bus = bus
-        self.beliefs: dict[tuple[int,int], ResourceType] = {}  
-        self.dispatched: set[tuple[int,int]] = set()          
-        self.delivered = {rt: 0 for rt in ResourceType}       
+        self.beliefs: dict[tuple[int, int], ResourceType] = {}
+        self.dispatched_GOAL: set[tuple[int, int]] = set()
+        self.dispatched_STATE: set[tuple[int, int]] = set()
 
+        # canal próprio
+        self.bus.register("BDI")
+
+    # ------------------------------------------------------------ #
     def step(self):
-        self._update_beliefs()    
-        self._receive_beliefs()   
-        self._delegate_tasks()    
+        self._merge_model_beliefs()
+        self._receive_beliefs()
+        self._delegate("GOAL")
+        self._delegate("STATE")
 
-    def _update_beliefs(self):
-        # adiciona ao dicionário todas as posições que o modelo conhece
+    # ------------------------------------------------------------ #
+    #  crenças                                                     #
+    # ------------------------------------------------------------ #
+    def _merge_model_beliefs(self):
         self.beliefs.update(self.model.known_resources)
 
     def _receive_beliefs(self):
-        # processa mensagens tipo "belief" vindas dos agentes
         for msg in self.bus.receive("BDI"):
-            if msg["type"] == "belief":
+            if msg.get("type") == "belief":
                 pos = tuple(msg["data"]["position"])
                 rt = ResourceType[msg["data"]["resource_type"]]
                 self.beliefs[pos] = rt
                 self.model.report_resource(pos, rt)
 
-    def _delegate_tasks(self):
-        # filtra recursos ainda não delegados
-        pending = {p: r for p, r in self.beliefs.items() if p not in self.dispatched}
+    # ------------------------------------------------------------ #
+    #  deliberação / delegação                                     #
+    # ------------------------------------------------------------ #
+    def _delegate(self, team: str):
+        """team='GOAL' ou 'STATE'  → canal broadcast_<team>"""
+        disp_set = self.dispatched_GOAL if team == "GOAL" else self.dispatched_STATE
+
+        # recursos ainda não despachados para esse time
+        pending = {p: rt for p, rt in self.beliefs.items() if p not in disp_set}
         if not pending:
             return
-        # evita delegar múltiplas STRUCTURE simultaneamente
-        if any(self.beliefs[p] == ResourceType.STRUCTURE for p in self.dispatched):
+
+        # se já há STRUCTURE pendente nesse time, esperar
+        if any(self.beliefs[p] == ResourceType.STRUCTURE for p in disp_set):
             return
-        # escolhe recurso de maior valor e menor distância à base
+
         best_pos, best_rt = min(
             pending.items(),
-            key=lambda kv: (-VALUE[kv[1]], dist(self.model.base_position, kv[0]))
+            key=lambda kv: (-VALUE[kv[1]], dist(self.model.base_position, kv[0])),
         )
-        # envia tarefa de coleta para todos (broadcast)
+
         self.bus.send(
-            "broadcast",
-            {"type": "task", "action": "collect",
-             "position": best_pos, "resource_type": best_rt.name},
+            f"broadcast_{team}",
+            {
+                "type": "task",
+                "action": "collect",
+                "position": best_pos,
+                "resource_type": best_rt.name,
+            },
         )
-        self.dispatched.add(best_pos)
-        log(self, f"delegou {best_rt.name} em {best_pos}")
+        disp_set.add(best_pos)
+        log(self, f"delegou {best_rt.name} ({team}) em {best_pos}")

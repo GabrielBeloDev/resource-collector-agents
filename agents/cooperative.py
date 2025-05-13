@@ -1,77 +1,71 @@
+from random import choice
 from mesa import Agent
 from environment.resource import ResourceType
-from random import choice
 
 
-def log(agent, msg):
-    print(f"[Coop {agent.unique_id}] {msg}")
+def log(a, m):
+    print(f"[Coop {a.unique_id}] {m}")
 
 
 class CooperativeAgent(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-        self.carrying = None                              
-        self.waiting_for_help = False                     
-        self.known_structures: set[tuple[int,int]] = set()
-        self.target = None                               
-        self.delivered = {rt: 0 for rt in ResourceType}   
+    def __init__(self, uid, model):
+        super().__init__(uid, model)
+        self.carrying = None
+        self.waiting_for_help = False
+        self.structures = set()
+        self.target = None
+        self.delivered = {rt: 0 for rt in ResourceType}
 
     def step(self):
-        #Entrega se estiver carregando
         if self.carrying:
-            self.move_towards(self.model.base_position)
+            self._move(self.model.base_position)
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying, self.unique_id)
                 self.delivered[self.carrying] += 1
-                log(self, f"entregou STRUCTURE na base")
+                log(self, "entregou STRUCTURE na base")
                 self.carrying = None
             return
-
-        # Se aguardando parceiro, tenta coletar
         if self.waiting_for_help:
-            self.check_for_partner()
+            self._check()
             return
-
-        # Atualiza lista de estruturas no grid
-        self.scan_for_structures()
-
-        # Vai ajudar na estrutura mais útil
-        if self.known_structures:
-            best = self.choose_best_structure()
-            if best:
-                self.target = best
-                log(self, f"ajudando em {best}")
-                self.move_towards(best)
-                if self.pos == best:
-                    self.check_for_partner()
+        self._scan()
+        if self.structures:
+            b = self._best()
+            if b:
+                self.target = b
+                log(self, f"ajudando em {b}")
+                self._move(b)
+                if self.pos == b:
+                    self._check()
                 return
+        self._walk()
 
-        self.random_move()
-
-    def scan_for_structures(self):
-        # percorre todo o grid para localizar STRUCTURE
-        self.known_structures.clear()
+    def _scan(self):
+        self.structures.clear()
         for x in range(self.model.grid.width):
             for y in range(self.model.grid.height):
-                cell = self.model.grid.get_cell_list_contents([(x, y)])
-                if any(getattr(obj, "resource_type", None) == ResourceType.STRUCTURE for obj in cell):
-                    self.known_structures.add((x, y))
+                if any(
+                    getattr(o, "resource_type", None) == ResourceType.STRUCTURE
+                    for o in self.model.grid.get_cell_list_contents([(x, y)])
+                ):
+                    self.structures.add((x, y))
 
-    def choose_best_structure(self):
-        # calcula utilidade = value/(dist+1)*(1+parceiros)
-        best_pos, best_u = None, -1
-        for pos in self.known_structures:
-            d = abs(self.pos[0]-pos[0]) + abs(self.pos[1]-pos[1])
-            waiting = sum(1 for a in self.model.grid.get_cell_list_contents([pos])
-                          if getattr(a, "waiting_for_help", False))
-            u = (1/(d+1))*(1+waiting)*ResourceType.STRUCTURE.value
-            if u > best_u:
-                best_pos, best_u = pos, u
-        return best_pos
+    def _best(self):
+        best, u = None, -1
+        for p in self.structures:
+            d = abs(self.pos[0] - p[0]) + abs(self.pos[1] - p[1])
+            w = sum(
+                1
+                for a in self.model.grid.get_cell_list_contents([p])
+                if getattr(a, "waiting_for_help", False)
+            )
+            val = (1 / (d + 1)) * (1 + w) * ResourceType.STRUCTURE.value
+            if val > u:
+                best, u = p, val
+        return best
 
-    def check_for_partner(self):
+    def _check(self):
         cell = self.model.grid.get_cell_list_contents([self.pos])
-        # remove STRUCTURE e marca parceria
         for obj in cell:
             if getattr(obj, "resource_type", None) == ResourceType.STRUCTURE:
                 self.model.grid.remove_agent(obj)
@@ -83,22 +77,26 @@ class CooperativeAgent(Agent):
                 self.waiting_for_help = False
                 log(self, "coleta concluída em parceria")
                 return
-        # sinaliza espera se achar STRUCTURE mas sem parceiro
         self.waiting_for_help = True
         log(self, "aguardando parceiro")
 
-    def move_towards(self, dst):
-        # passo único em Manhattan
-        x,y = self.pos; dx,dy = dst
-        if x<dx: x+=1
-        elif x>dx: x-=1
-        elif y<dy: y+=1
-        elif y>dy: y-=1
-        self.model.safe_move(self, (x,y))
+    def _move(self, d):
+        x, y = self.pos
+        dx, dy = d
+        if x < dx:
+            x += 1
+        elif x > dx:
+            x -= 1
+        elif y < dy:
+            y += 1
+        elif y > dy:
+            y -= 1
+        self.model.safe_move(self, (x, y))
 
-    def random_move(self):
-        # escolhe movimento ortogonal 
-        nbrs = self.model.grid.get_neighborhood(self.pos, moore=False, include_center=False)
+    def _walk(self):
+        nbrs = self.model.grid.get_neighborhood(
+            self.pos, moore=False, include_center=False
+        )
         if nbrs:
             p = choice(nbrs)
             self.model.safe_move(self, p)

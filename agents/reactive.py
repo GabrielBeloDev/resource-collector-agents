@@ -1,58 +1,43 @@
+from random import choice
 from mesa import Agent
 from environment.resource import ResourceType
-from random import choice
 
 
-def log(agent, msg):
-    print(f"[Reactive {agent.unique_id}] {msg}")
+def log(a, m):
+    print(f"[Reactive {a.unique_id}] {m}")
 
 
 class ReactiveAgent(Agent):
-    def __init__(self, unique_id, model):
-        super().__init__(unique_id, model)
-        # Recurso atualmente carregado (None se vazio)
+    def __init__(self, uid, model):
+        super().__init__(uid, model)
         self.carrying = None
-        # Contador de entregas por tipo de recurso
-        self.delivered = {
-            ResourceType.CRYSTAL: 0,
-            ResourceType.METAL: 0,
-            ResourceType.STRUCTURE: 0,
-        }
+        self.delivered = {rt: 0 for rt in ResourceType}
 
     def step(self):
-        # Se estiver carregando, volta à base para entregar
         if self.carrying:
-            self.move_towards_base()
-            # Ao chegar na base, deposita e zera carrying
+            self._to_base()
             if self.pos == self.model.base_position:
                 self.model.base.deposit(self.carrying, self.unique_id)
                 self.delivered[self.carrying] += 1
-                log(self, f"entregou {self.carrying.name} na base")
+                log(self, f"🚚 entregou {self.carrying.name}")
                 self.carrying = None
             return
-
-        # Tenta coletar recurso na célula atual
-        if self.try_collect_resource():
+        if self._collect():
             return
+        self._walk()
 
-        # Se não coletou nada, movimenta-se aleatoriamente
-        self.random_move()
-
-    def try_collect_resource(self):
-        # Varre todos os agentes/objetos na própria célula
+    def _collect(self):
         for obj in self.model.grid.get_cell_list_contents([self.pos]):
             if hasattr(obj, "resource_type"):
-                r_type = obj.resource_type
-                # Coleta somente CRYSTAL ou METAL
-                if r_type in (ResourceType.CRYSTAL, ResourceType.METAL):
+                r = obj.resource_type
+                if r in (ResourceType.CRYSTAL, ResourceType.METAL):
                     self.model.grid.remove_agent(obj)
-                    self.carrying = r_type
-                    log(self, f"coletou {r_type.name} em {self.pos}")
+                    self.carrying = r
+                    log(self, f"💎 pegou {r.name}")
                     return True
         return False
 
-    def move_towards_base(self):
-        # Move um passo em direção à base (distância Manhattan)
+    def _to_base(self):
         x, y = self.pos
         bx, by = self.model.base_position
         if x < bx:
@@ -65,12 +50,11 @@ class ReactiveAgent(Agent):
             y -= 1
         self.model.safe_move(self, (x, y))
 
-    def random_move(self):
-        # Busca vizinhos ortogonais disponíveis
-        neighbors = self.model.grid.get_neighborhood(
+    def _walk(self):
+        nbrs = self.model.grid.get_neighborhood(
             self.pos, moore=False, include_center=False
         )
-        if neighbors:
-            new_pos = choice(neighbors)
-            self.model.safe_move(self, new_pos)
-            log(self, f"andou aleatoriamente para {new_pos}")
+        if nbrs:
+            p = choice(nbrs)
+            self.model.safe_move(self, p)
+            log(self, f"andou para {p}")
