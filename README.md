@@ -21,7 +21,6 @@ Uma equipe de agentes autônomos pousou em um planeta desconhecido. Eles precisa
 | Ícone | Objeto | Cor no canvas |
 |-------|--------|---------------|
 | ⬜ | **Base** | branco, contorno preto |
-| ◼ | **Montanha / Rio** | cinza (#555) |
 | 🔵 | Cristal (10 pts) | blue |
 | ⚪ | Metal (20 pts) | silver |
 | ⚫ | Estrutura (50 pts) | black |
@@ -37,7 +36,6 @@ Clique **Reset** e depois **Start** no navegador para ver os agentes contornando
 
 - Python 3.10+
 - [Mesa](https://mesa.readthedocs.io/) — framework de simulação multiagente
-- YAML — para configuração de cenários
 - Estrutura modular e extensível
 ## 📁 Estrutura do Projeto
 
@@ -77,12 +75,9 @@ pip install mesa==2.1.1"
 #### 4. Execução da Simulação
 ```bash
 🔹 Modo Web (com Mesa):
-python3 python3 server.py 
+python3 server.py 
 ```
-```bash
-🔸 Modo terminal:
-python3 run_mesa.py
-```
+
 
 
 ## 🔸 Configuração:
@@ -99,20 +94,12 @@ Edite os arquivos em configs/sample_config.yaml ou sample_config.py para mudar o
 
 - simulation.storm_turn: passo em que a tempestade encerra a coleta
 
-### 📊 Métricas de Avaliação
-
-| Métrica                         | Valor* |
-|---------------------------------|:------:|
-| Recursos coletados              |   —    |
-| Utilidade entregue à base       |   —    |
-| Passos executados               |   —    |
 
 ### 🔬 Extensões Futuras
 - Visualização em tempo real com `mesa.visualization`
-- Estratégias BDI com troca de crenças
 - Otimização por heurísticas ou aprendizado
 - Configurações via linha de comando (CLI)
 
 ### 👨‍🏫 Créditos
 Este projeto integra a disciplina de Inteligência Artificial – Ciência da Computação, UFMA (2025.1).  
-Alunos: Gabriel Belo Pereira dos Reis, João Felipe, Gabriel Bastos, Isaque Santos
+Alunos: Gabriel Belo Pereira dos Reis, João Felipe, Gabriel Bastos.

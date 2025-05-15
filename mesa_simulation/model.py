@@ -74,15 +74,9 @@ class ResourceModel(Model):
         self.known_resources.pop(pos, None)
 
     def _create_agent(self, kind: str):
-        """
-        Cria o agente do tipo solicitado, atribui‑lhe um nome legível
-        (para aparecer no grid/legenda) e já faz o registro no MessageBus.
-        """
-        # gera o UID
         uid = self.next_uid
         self.next_uid += 1
 
-        # mapeia o rótulo curto que queremos exibir
         pretty = {
             "BDI": "BDI",
             "GOAL_BASED": "Goal",
@@ -91,10 +85,8 @@ class ResourceModel(Model):
             "COOPERATIVE": "Coop",
         }.get(kind, kind)
 
-        # cada agente publica em seu próprio canal (até o BDI, se quiser)
         self.message_bus.register(str(uid))
 
-        # cria o agente propriamente dito
         match kind:
             case "BDI":
                 agent = BDIAgent(uid, self, self.message_bus)
@@ -109,7 +101,6 @@ class ResourceModel(Model):
             case _:
                 raise ValueError(f"Tipo desconhecido: {kind}")
 
-        # adiciona o nome para uso nos painéis / grid
         agent.name = f"{pretty}-{uid:02}"
 
         return agent
