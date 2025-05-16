@@ -1,61 +1,68 @@
+from math import dist
 from mesa import Agent
 from environment.resource import ResourceType
 
+VALUE = {
+    ResourceType.CRYSTAL: 10,
+    ResourceType.METAL: 20,
+    ResourceType.STRUCTURE: 50,
+}
+DEBUG_BDI = True
+
+
+def log(agent, msg: str) -> None:
+    if not DEBUG_BDI:
+        return
+    step = agent.model.schedule.time
+    print(f"[BDI {agent.unique_id:02} | t={step:03}] {msg}")
+
 
 class BDIAgent(Agent):
-    def __init__(self, uid, model, message_bus):
+    def __init__(self, uid, model, bus):
         super().__init__(uid, model)
-        self.message_bus = message_bus
-        self.beliefs = {}
-        self.intentions = []
-        self.desires = [
-            ResourceType.STRUCTURE,
-            ResourceType.METAL,
-            ResourceType.CRYSTAL,
-        ]
-
-    def perceive(self):
-        for obj in self.model.grid.get_cell_list_contents([self.pos]):
-            if hasattr(obj, "resource_type"):
-                self.beliefs[self.pos] = obj.resource_type
-                self.broadcast_belief(self.pos, obj.resource_type)
-
-        for msg in self.message_bus.receive(str(self.unique_id)):
-            if msg["type"] == "belief":
-                pos = tuple(msg["data"]["position"])
-                r_type = ResourceType[msg["data"]["resource_type"]]
-                self.beliefs[pos] = r_type
-
-    def broadcast_belief(self, pos, r_type):
-        for i in range(10):
-            if i != self.unique_id:
-                self.message_bus.send(
-                    str(i),
-                    {
-                        "type": "belief",
-                        "data": {"position": pos, "resource_type": r_type.name},
-                    },
-                )
-
-    def deliberate(self):
-        resources = [(p, t) for p, t in self.beliefs.items() if t in self.desires]
-        if resources:
-            resources.sort(key=lambda r: (-r[1].value, self.distance_to(r[0])))
-            self.intentions = [resources[0][0]]
+        self.bus = bus
+        self.beliefs: dict[tuple[int, int], ResourceType] = {}
+        self.dispatched_GOAL: set[tuple[int, int]] = set()
+        self.dispatched_STATE: set[tuple[int, int]] = set()
+        self.bus.register("BDI")
 
     def step(self):
-        self.perceive()
-        self.deliberate()
+        self._merge_model_beliefs()
+        self._receive_beliefs()
+        self._delegate("GOAL")
+        self._delegate("STATE")
+        self._delegate("COOPERATIVE")
 
-        if self.intentions:
-            target = self.intentions[0]
-            self.model.safe_move(self, target)
-            for obj in self.model.grid.get_cell_list_contents([self.pos]):
-                if hasattr(obj, "resource_type"):
-                    self.model.grid.remove_agent(obj)
-                    self.model.base.deposit(obj.resource_type)
-                    self.intentions.pop(0)
-                    break
+    def _merge_model_beliefs(self):
+        self.beliefs.update(self.model.known_resources)
 
-    def distance_to(self, pos):
-        return abs(self.pos[0] - pos[0]) + abs(self.pos[1] - pos[1])
+    def _receive_beliefs(self):
+        for msg in self.bus.receive("BDI"):
+            if msg.get("type") != "belief":
+                continue
+            pos = tuple(msg["data"]["position"])
+            rt = ResourceType[msg["data"]["resource_type"]]
+            self.beliefs[pos] = rt
+            self.model.report_resource(pos, rt)
+            log(self, f"nova crença: {rt.name} em {pos}")
+
+    def _delegate(self, team: str):
+        disp = self.dispatched_GOAL if team == "GOAL" else self.dispatched_STATE
+        pending = {p: rt for p, rt in self.beliefs.items() if p not in disp}
+        if not pending or any(self.beliefs[p] == ResourceType.STRUCTURE for p in disp):
+            return
+        best_pos, best_rt = min(
+            pending.items(),
+            key=lambda kv: (-VALUE[kv[1]], dist(self.model.base_position, kv[0])),
+        )
+        self.bus.send(
+            f"broadcast_{team}",
+            {
+                "type": "task",
+                "action": "collect",
+                "position": best_pos,
+                "resource_type": best_rt.name,
+            },
+        )
+        disp.add(best_pos)
+        log(self, f"delegou {best_rt.name} ao time {team} em {best_pos}")
